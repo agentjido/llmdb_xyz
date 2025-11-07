@@ -1,0 +1,35 @@
+<div class="min-h-screen bg-gray-50 dark:bg-gray-900">
+  <.container max_width="full" class="py-4 sm:py-6">
+    <div class="px-4">
+      <div>
+        <div class="hidden md:block">
+          <div class="overflow-x-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+            <PetalBoilerplateWeb.ModelComponents.model_table
+              models={@models}
+              sort={@sort}
+              total={@total}
+            />
+          </div>
+        </div>
+
+        <div class="md:hidden space-y-4">
+          <%= if @total == 0 do %>
+            <.card>
+              <.card_content>
+                <div class="py-8 text-center text-gray-500 dark:text-gray-400">
+                  No models match your filters. Try adjusting your search criteria.
+                </div>
+              </.card_content>
+            </.card>
+          <% else %>
+            <%= for model <- @models do %>
+              <div id={model_dom_id(model)}>
+                <PetalBoilerplateWeb.ModelComponents.model_card model={model} />
+              </div>
+            <% end %>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </.container>
+</div>

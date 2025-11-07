@@ -7,6 +7,12 @@ defmodule PetalBoilerplate.Application do
 
   @impl true
   def start(_type, _args) do
+    # Initialize LLMDb on startup
+    case LLMDb.load() do
+      {:ok, _} -> :ok
+      {:error, _} -> LLMDb.load_empty()
+    end
+
     children = [
       # Start the Telemetry supervisor
       PetalBoilerplateWeb.Telemetry,

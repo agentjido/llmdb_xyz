@@ -37,7 +37,7 @@ defmodule PetalBoilerplate.MixProject do
       {:ecto_sql, "~> 3.10"},
       {:postgrex, ">= 0.0.0"},
       {:phoenix_html, "~> 4.1"},
-      {:phoenix_live_reload, "~> 1.5", only: [:dev, :test]},
+      {:phoenix_live_reload, "~> 1.6", only: [:dev, :test]},
       {:phoenix_live_view, "~> 1.0.4"},
       {:heroicons,
        github: "tailwindlabs/heroicons",
@@ -58,7 +58,9 @@ defmodule PetalBoilerplate.MixProject do
       {:plug_cowboy, "~> 2.5"},
       {:petal_components, "~> 3.0"},
       {:plug_canonical_host, "~> 2.0"},
-      {:rename_project, "~> 0.1.0", only: :dev}
+      {:rename_project, "~> 0.1.0", only: :dev},
+      {:llm_db, github: "agentjido/llm_db"},
+      {:tidewave, "~> 0.5.1", only: [:dev, :test]}
     ]
   end
 

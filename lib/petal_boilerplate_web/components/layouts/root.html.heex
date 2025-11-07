@@ -7,6 +7,40 @@
     <.live_title suffix=" · Phoenix Framework">
       {assigns[:page_title] || "PetalBoilerplate"}
     </.live_title>
+
+    <%!-- OpenGraph / Social Media Tags --%>
+    <meta property="og:title" content={assigns[:page_title] || "PetalBoilerplate"} />
+    <meta
+      property="og:description"
+      content={assigns[:page_description] || "Phoenix application with Petal Components"}
+    />
+    <meta property="og:type" content={assigns[:og_type] || "website"} />
+    <meta property="og:url" content={assigns[:og_url] || "https://llmdb.xyz"} />
+    <meta
+      property="og:image"
+      content={assigns[:og_image] || "https://llmdb.xyz/images/og-image.png"}
+    />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+
+    <%!-- Twitter Card Tags --%>
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={assigns[:page_title] || "PetalBoilerplate"} />
+    <meta
+      name="twitter:description"
+      content={assigns[:page_description] || "Phoenix application with Petal Components"}
+    />
+    <meta
+      name="twitter:image"
+      content={assigns[:og_image] || "https://llmdb.xyz/images/og-image.png"}
+    />
+
+    <%!-- Standard Meta Tags --%>
+    <meta
+      name="description"
+      content={assigns[:page_description] || "Phoenix application with Petal Components"}
+    />
+
     <link phx-track-static rel="stylesheet" href={~p"/assets/app.css"} />
 
     <script defer src="https://unpkg.com/@alpinejs/collapse@3.x.x/dist/cdn.min.js">
@@ -17,16 +51,11 @@
     <script defer src="https://unpkg.com/js-cookie@3.x.x/dist/js.cookie.min.js">
     </script>
     <%= if Application.get_env(:petal_boilerplate, :enable_analytics) do %>
-      <script
-        defer
-        data-domain={Application.get_env(:petal_boilerplate, :canonical_host) || "llmdb.xyz"}
-        src="https://plausible.io/js/script.outbound-links.js"
-      >
+      <script async src="https://plausible.io/js/pa--janBeogK9G9oaeuCbmPP.js">
       </script>
       <script>
-        window.plausible = window.plausible || function() {
-          (window.plausible.q = window.plausible.q || []).push(arguments)
-        }
+        window.plausible=window.plausible||function(){(plausible.q=plausible.q||[]).push(arguments)},plausible.init=plausible.init||function(i){plausible.o=i||{}};
+        plausible.init()
       </script>
     <% end %>
     <script defer phx-track-static type="text/javascript" src={~p"/assets/app.js"}>

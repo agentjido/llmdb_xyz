@@ -29,6 +29,10 @@ config :petal_boilerplate, PetalBoilerplateWeb.Endpoint,
     tailwind: {Tailwind, :install_and_run, [:default, ~w(--watch)]}
   ]
 
+config :phoenix_live_view,
+  debug_heex_annotations: true,
+  debug_attributes: true
+
 # ## SSL Support
 #
 # In order to use HTTPS in development, a self-signed
@@ -77,3 +81,9 @@ config :phoenix, :plug_init_mode, :runtime
 
 # Disable swoosh api client as it is only required for production adapters.
 config :swoosh, :api_client, false
+
+# Configure Tidewave
+config :tidewave,
+  project_name: "llmdb_xyz",
+  framework_type: "phoenix",
+  tidewave_version: "0.5.1"

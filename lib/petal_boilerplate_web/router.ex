@@ -17,18 +17,15 @@ defmodule PetalBoilerplateWeb.Router do
   scope "/", PetalBoilerplateWeb do
     pipe_through :browser
 
-    get "/", PageController, :home
-    live "/form", FormLive, :index
-    live "/live", PageLive, :index
-    live "/live/modal/:size", PageLive, :modal
-    live "/live/slide_over/:origin", PageLive, :slide_over
-    live "/live/pagination/:page", PageLive, :pagination
+    live "/", ModelLive, :index
   end
 
   # Other scopes may use custom stacks.
-  # scope "/api", PetalBoilerplateWeb do
-  #   pipe_through :api
-  # end
+  scope "/api", PetalBoilerplateWeb do
+    pipe_through :api
+
+    post "/mcp", MCPController, :handle
+  end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development
   if Application.compile_env(:petal_boilerplate, :dev_routes) do
