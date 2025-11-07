@@ -20,6 +20,11 @@ if System.get_env("PHX_SERVER") do
   config :petal_boilerplate, PetalBoilerplateWeb.Endpoint, server: true
 end
 
+config :petal_boilerplate,
+  canonical_host: System.get_env("CANONICAL_HOST"),
+  # Set to true/false to control Plausible analytics loading, only in production
+  enable_analytics: System.get_env("ENABLE_ANALYTICS")
+
 if config_env() == :prod do
   # Database disabled - no DATABASE_URL needed
   # database_url =
