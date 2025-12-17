@@ -66,7 +66,7 @@ defmodule PetalBoilerplateWeb.MCPController do
         "method" => "tools/call",
         "params" => %{"name" => "query_models", "arguments" => args}
       }) do
-    all_models = LLMDb.model()
+    all_models = LLMDB.models()
 
     filtered =
       all_models
@@ -97,7 +97,7 @@ defmodule PetalBoilerplateWeb.MCPController do
         "method" => "tools/call",
         "params" => %{"name" => "get_model", "arguments" => %{"spec" => spec}}
       }) do
-    case LLMDb.model(spec) do
+    case LLMDB.model(spec) do
       {:ok, model} ->
         result = %{
           spec: "#{model.provider}:#{model.id}",
@@ -123,13 +123,13 @@ defmodule PetalBoilerplateWeb.MCPController do
 
   def handle(conn, %{"method" => "tools/call", "params" => %{"name" => "list_providers"}}) do
     providers =
-      LLMDb.provider()
+      LLMDB.providers()
       |> Enum.map(fn provider ->
         %{
           id: provider.id,
           name: provider.name,
           base_url: provider.base_url,
-          model_count: length(LLMDb.models(provider.id))
+          model_count: length(LLMDB.models(provider.id))
         }
       end)
 

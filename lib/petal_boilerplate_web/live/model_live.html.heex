@@ -1,20 +1,290 @@
 <div class="min-h-screen bg-gray-50 dark:bg-gray-900">
+  <PetalBoilerplateWeb.ModelComponents.model_detail_modal model={@selected_model} />
   <.container max_width="full" class="py-4 sm:py-6">
     <div class="px-4">
-      <div>
+      <div class="mb-8 text-center">
+        <h1 class="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white mb-3">
+          Explore 2,000+ LLM Models
+        </h1>
+        <p class="text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
+          Compare pricing, capabilities, and context windows across all major providers.
+          Powered by <a
+            href="https://hex.pm/packages/llm_db"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="text-primary-600 dark:text-primary-400 hover:underline"
+          >llm_db</a>.
+        </p>
+      </div>
+      <div class="space-y-4">
+        <%= if @filters_open do %>
+          <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-sm font-semibold text-gray-900 dark:text-white">Filters</h3>
+              <button
+                type="button"
+                phx-click="toggle_filters"
+                class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+              >
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+            <form phx-change="filter" phx-debounce="200">
+              <input type="hidden" name="search" value={@search_value} />
+              <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+                <div>
+                  <.form_label>Providers</.form_label>
+                  <div class="space-y-1 max-h-32 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded p-2">
+                    <%= for provider <- @providers do %>
+                      <label class="flex items-center gap-2 cursor-pointer text-sm">
+                        <input
+                          type="checkbox"
+                          name={"providers[#{provider.id}]"}
+                          checked={MapSet.member?(@filters.provider_ids, to_string(provider.id))}
+                          class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                        />
+                        <span class="text-gray-700 dark:text-gray-300 truncate">
+                          {provider.name}
+                        </span>
+                      </label>
+                    <% end %>
+                  </div>
+                </div>
+
+                <div>
+                  <.form_label>Capabilities</.form_label>
+                  <div class="space-y-1">
+                    <label class="flex items-center gap-2 cursor-pointer text-sm">
+                      <input
+                        type="checkbox"
+                        name="cap_chat"
+                        value="true"
+                        checked={@filters.capabilities.chat}
+                        class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                      />
+                      <span class="text-gray-700 dark:text-gray-300">Chat</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer text-sm">
+                      <input
+                        type="checkbox"
+                        name="cap_embeddings"
+                        value="true"
+                        checked={@filters.capabilities.embeddings}
+                        class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                      />
+                      <span class="text-gray-700 dark:text-gray-300">Embeddings</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer text-sm">
+                      <input
+                        type="checkbox"
+                        name="cap_reasoning"
+                        value="true"
+                        checked={@filters.capabilities.reasoning}
+                        class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                      />
+                      <span class="text-gray-700 dark:text-gray-300">Reasoning</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer text-sm">
+                      <input
+                        type="checkbox"
+                        name="cap_tools"
+                        value="true"
+                        checked={@filters.capabilities.tools}
+                        class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                      />
+                      <span class="text-gray-700 dark:text-gray-300">Tools</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer text-sm">
+                      <input
+                        type="checkbox"
+                        name="cap_json_native"
+                        value="true"
+                        checked={@filters.capabilities.json_native}
+                        class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                      />
+                      <span class="text-gray-700 dark:text-gray-300">JSON Native</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer text-sm">
+                      <input
+                        type="checkbox"
+                        name="cap_streaming_text"
+                        value="true"
+                        checked={@filters.capabilities.streaming_text}
+                        class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                      />
+                      <span class="text-gray-700 dark:text-gray-300">Streaming</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div>
+                  <.form_label>Input Modalities</.form_label>
+                  <div class="space-y-1">
+                    <label class="flex items-center gap-2 cursor-pointer text-sm">
+                      <input
+                        type="checkbox"
+                        name="modalities_in[text]"
+                        checked={MapSet.member?(@filters.modalities_in, :text)}
+                        class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                      />
+                      <span class="text-gray-700 dark:text-gray-300">Text</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer text-sm">
+                      <input
+                        type="checkbox"
+                        name="modalities_in[image]"
+                        checked={MapSet.member?(@filters.modalities_in, :image)}
+                        class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                      />
+                      <span class="text-gray-700 dark:text-gray-300">Image</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer text-sm">
+                      <input
+                        type="checkbox"
+                        name="modalities_in[audio]"
+                        checked={MapSet.member?(@filters.modalities_in, :audio)}
+                        class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                      />
+                      <span class="text-gray-700 dark:text-gray-300">Audio</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div>
+                  <.form_label>Limits</.form_label>
+                  <div class="space-y-2">
+                    <div>
+                      <label class="text-xs text-gray-500 dark:text-gray-400">Min Context</label>
+                      <.input
+                        type="number"
+                        name="min_context"
+                        value={@filters.min_context}
+                        placeholder="e.g., 32000"
+                        class="text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label class="text-xs text-gray-500 dark:text-gray-400">Min Output</label>
+                      <.input
+                        type="number"
+                        name="min_output"
+                        value={@filters.min_output}
+                        placeholder="e.g., 4000"
+                        class="text-sm"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <.form_label>Max Cost ($/1M tokens)</.form_label>
+                  <div class="space-y-2">
+                    <div>
+                      <label class="text-xs text-gray-500 dark:text-gray-400">Input</label>
+                      <.input
+                        type="number"
+                        name="max_cost_in"
+                        value={@filters.max_cost_in}
+                        placeholder="e.g., 5.00"
+                        step="0.01"
+                        class="text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label class="text-xs text-gray-500 dark:text-gray-400">Output</label>
+                      <.input
+                        type="number"
+                        name="max_cost_out"
+                        value={@filters.max_cost_out}
+                        placeholder="e.g., 15.00"
+                        step="0.01"
+                        class="text-sm"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <.form_label>Options</.form_label>
+                  <div class="space-y-1">
+                    <label class="flex items-center gap-2 cursor-pointer text-sm">
+                      <input
+                        type="checkbox"
+                        name="show_deprecated"
+                        value="true"
+                        checked={@filters.show_deprecated}
+                        class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                      />
+                      <span class="text-gray-700 dark:text-gray-300">Show deprecated</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer text-sm">
+                      <input
+                        type="checkbox"
+                        name="allowed_only"
+                        value="true"
+                        checked={@filters.allowed_only}
+                        class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                      />
+                      <span class="text-gray-700 dark:text-gray-300">Allowed only</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </form>
+          </div>
+        <% end %>
+
+        <div class="flex items-center justify-between">
+          <div class="text-sm text-gray-500 dark:text-gray-400">
+            Showing {@total} models
+            <%= if @total_pages > 1 do %>
+              <span class="ml-1">(page {@page} of {@total_pages})</span>
+            <% end %>
+          </div>
+          <%= if @total_pages > 1 do %>
+            <div class="flex items-center gap-2">
+              <button
+                type="button"
+                phx-click="page"
+                phx-value-page={@page - 1}
+                disabled={@page <= 1}
+                class="px-3 py-1 text-sm border rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-gray-700 dark:border-gray-600"
+              >
+                ← Prev
+              </button>
+              <button
+                type="button"
+                phx-click="page"
+                phx-value-page={@page + 1}
+                disabled={@page >= @total_pages}
+                class="px-3 py-1 text-sm border rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-gray-700 dark:border-gray-600"
+              >
+                Next →
+              </button>
+            </div>
+          <% end %>
+        </div>
+
         <div class="hidden md:block">
           <div class="overflow-x-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
             <PetalBoilerplateWeb.ModelComponents.model_table
-              models={@models}
+              models={@streams.models}
               sort={@sort}
               total={@total}
             />
           </div>
         </div>
 
-        <div class="md:hidden space-y-4">
+        <div class="md:hidden space-y-4" id="mobile-models" phx-update="stream">
           <%= if @total == 0 do %>
-            <.card>
+            <.card id="no-models-card">
               <.card_content>
                 <div class="py-8 text-center text-gray-500 dark:text-gray-400">
                   No models match your filters. Try adjusting your search criteria.
@@ -22,13 +292,41 @@
               </.card_content>
             </.card>
           <% else %>
-            <%= for model <- @models do %>
-              <div id={model_dom_id(model)}>
-                <PetalBoilerplateWeb.ModelComponents.model_card model={model} />
-              </div>
-            <% end %>
+            <div
+              :for={{dom_id, model} <- @streams.models}
+              id={dom_id}
+              phx-click="show_model"
+              phx-value-id={dom_id}
+              class="cursor-pointer"
+            >
+              <PetalBoilerplateWeb.ModelComponents.model_card model={model} />
+            </div>
           <% end %>
         </div>
+
+        <%= if @total_pages > 1 do %>
+          <div class="flex items-center justify-center gap-2 pt-4">
+            <button
+              type="button"
+              phx-click="page"
+              phx-value-page={@page - 1}
+              disabled={@page <= 1}
+              class="px-3 py-1 text-sm border rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-gray-700 dark:border-gray-600"
+            >
+              ← Prev
+            </button>
+            <span class="text-sm text-gray-500">Page {@page} of {@total_pages}</span>
+            <button
+              type="button"
+              phx-click="page"
+              phx-value-page={@page + 1}
+              disabled={@page >= @total_pages}
+              class="px-3 py-1 text-sm border rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-gray-700 dark:border-gray-600"
+            >
+              Next →
+            </button>
+          </div>
+        <% end %>
       </div>
     </div>
   </.container>

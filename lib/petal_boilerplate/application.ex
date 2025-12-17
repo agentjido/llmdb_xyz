@@ -7,11 +7,14 @@ defmodule PetalBoilerplate.Application do
 
   @impl true
   def start(_type, _args) do
-    # Initialize LLMDb on startup
-    case LLMDb.load() do
+    # Initialize LLMDB on startup
+    case LLMDB.load() do
       {:ok, _} -> :ok
-      {:error, _} -> LLMDb.load_empty()
+      {:error, _} -> LLMDB.load_empty()
     end
+
+    # Pre-warm the model cache for fast initial load
+    PetalBoilerplate.Catalog.init_cache()
 
     children = [
       # Start the Telemetry supervisor

@@ -1,35 +1,89 @@
-# Petal Boilerplate
+# llmdb.xyz
 
-A clean install of the Phoenix 1.7 (RC) along with:
-- Alpine JS - using a CDN to avoid needing `node_modules`
-- 🌺 [Petal Components Library](https://github.com/petalframework/petal_components)
-- Maintained and sponsored by [Petal Framework](https://petal.build)
+LLM Model Database - A showcase for the [llm_db](https://github.com/agentjido/llm_db) Elixir package.
 
-## Get up and running
+Browse and compare LLM models with capability-aware filtering.
 
-Optionally change your database name in `dev.exs`.
+## Features
 
-1. Setup the project with `mix setup`
-2. Start Phoenix endpoint with `mix phx.server` or inside IEx with `iex -S mix phx.server`
-3. Now you can visit [`localhost:4000`](http://localhost:4000) from your browser.
+- Browse models from all major LLM providers (OpenAI, Anthropic, Google, Mistral, and more)
+- Filter by capabilities (chat, tools, JSON, streaming, reasoning, embeddings)
+- Filter by input modalities (text, image, audio)
+- Filter by context window, output limits, and pricing
+- Sort by any column
+- Mobile-friendly card view
+- Dark mode support
 
-## Phoenix 1.7 generators
+## Powered by llm_db
 
-The CRUD generators (eg. `mix phx.gen.live`) will produce code that doesn't quite work. Basically, they will use components defined in `core_components.ex` that we have renamed due to naming clashes with Petal Components.
-To fix, simply do a find and replace in the generated code:
+This site is powered by [llm_db](https://hex.pm/packages/llm_db), an Elixir package providing LLM model metadata with fast, capability-aware lookups.
 
+Add it to your project:
+
+```elixir
+def deps do
+  [
+    {:llm_db, "~> 2025.12.1"}
+  ]
+end
 ```
-Replace `.modal` with `.phx_modal`
-Replace `.table` with `.phx_table`
-Replace `.button` with `.phx_button`
+
+### Example Usage
+
+```elixir
+# List all providers
+LLMDb.provider()
+
+# List all models
+LLMDb.model()
+
+# Find models with specific capabilities
+LLMDb.model()
+|> Enum.filter(fn model ->
+  caps = model.capabilities || %{}
+  caps[:chat] and get_in(caps, [:tools, :enabled])
+end)
 ```
 
-This should make it work but it'll be using a different style of buttons/tables/modal to Petal Components. To work with Petal Components you will need to replace all buttons/tables/modal with the Petal Component versions.
+## Development
 
-Petal Pro currently comes with a generator to build CRUD interfaces with Petal Components. You can purchase it [here](https://petal.build/pro).
+### Prerequisites
 
-## Renaming your project
+- Elixir 1.14+
+- Erlang/OTP 25+
 
-Run `mix rename PetalBoilerplate YourNewName` to rename your project. You can then remove `{:rename_project, "~> 0.1.0", only: :dev}` from your `mix.exs` file.
+### Setup
 
+```bash
+# Install dependencies
+mix deps.get
 
+# Build assets
+mix assets.build
+
+# Start the server
+mix phx.server
+```
+
+Visit [http://localhost:4000](http://localhost:4000) to see the app.
+
+### Running in IEx
+
+```bash
+iex -S mix phx.server
+```
+
+## Deployment
+
+The application is configured for deployment to standard Phoenix hosting platforms.
+
+### Environment Variables
+
+- `SECRET_KEY_BASE` - Required for production
+- `HOST` - The hostname (default: llmdb.xyz)
+- `PORT` - The port to listen on (default: 4000)
+- `ENABLE_ANALYTICS` - Set to "true" to enable Plausible analytics
+
+## License
+
+MIT

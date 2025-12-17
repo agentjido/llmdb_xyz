@@ -33,9 +33,6 @@ defmodule PetalBoilerplate.MixProject do
   defp deps do
     [
       {:phoenix, "~> 1.7.17"},
-      {:phoenix_ecto, "~> 4.5"},
-      {:ecto_sql, "~> 3.10"},
-      {:postgrex, ">= 0.0.0"},
       {:phoenix_html, "~> 4.1"},
       {:phoenix_live_reload, "~> 1.6", only: [:dev, :test]},
       {:phoenix_live_view, "~> 1.0.4"},
@@ -59,7 +56,7 @@ defmodule PetalBoilerplate.MixProject do
       {:petal_components, "~> 3.0"},
       {:plug_canonical_host, "~> 2.0"},
       {:rename_project, "~> 0.1.0", only: :dev},
-      {:llm_db, github: "agentjido/llm_db"},
+      {:llm_db, "~> 2025.12.1"},
       {:tidewave, "~> 0.5.1", only: [:dev, :test]}
     ]
   end

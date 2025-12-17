@@ -4,16 +4,13 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="csrf-token" content={get_csrf_token()} />
-    <.live_title suffix=" · Phoenix Framework">
-      {assigns[:page_title] || "PetalBoilerplate"}
+    <.live_title suffix=" · llmdb.xyz">
+      {assigns[:page_title] || "LLM Model Database"}
     </.live_title>
 
     <%!-- OpenGraph / Social Media Tags --%>
     <meta property="og:title" content={assigns[:page_title] || "LLM Model Database"} />
-    <meta
-      property="og:description"
-      content={assigns[:page_description] || "LLM Model Database"}
-    />
+    <meta property="og:description" content={assigns[:page_description] || "LLM Model Database"} />
     <meta property="og:type" content={assigns[:og_type] || "website"} />
     <meta property="og:url" content={assigns[:og_url] || "https://llmdb.xyz"} />
     <meta
@@ -25,21 +22,15 @@
 
     <%!-- Twitter Card Tags --%>
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content={assigns[:page_title] || "PetalBoilerplate"} />
-    <meta
-      name="twitter:description"
-      content={assigns[:page_description] || "LLM Model Database"}
-    />
+    <meta name="twitter:title" content={assigns[:page_title] || "LLM Model Database"} />
+    <meta name="twitter:description" content={assigns[:page_description] || "LLM Model Database"} />
     <meta
       name="twitter:image"
       content={assigns[:og_image] || "https://llmdb.xyz/images/og-image.png"}
     />
 
     <%!-- Standard Meta Tags --%>
-    <meta
-      name="description"
-      content={assigns[:page_description] || "LLM Model Database"}
-    />
+    <meta name="description" content={assigns[:page_description] || "LLM Model Database"} />
 
     <link phx-track-static rel="stylesheet" href={~p"/assets/app.css"} />
 
