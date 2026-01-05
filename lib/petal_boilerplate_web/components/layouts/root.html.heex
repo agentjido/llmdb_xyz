@@ -4,6 +4,13 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="csrf-token" content={get_csrf_token()} />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
     <.live_title suffix=" · llmdb.xyz">
       {assigns[:page_title] || "LLM Model Database"}
     </.live_title>
@@ -53,6 +60,15 @@
     </script>
 
     <.color_scheme_switch_js />
+
+    <script>
+      (function () {
+        const stored = localStorage.getItem("theme");
+        const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        const theme = stored || (prefersDark ? "dark" : "light");
+        document.body.classList.toggle("dark", theme === "dark");
+      })();
+    </script>
   </head>
   <body class="antialiased bg-white dark:bg-gray-900">
     {@inner_content}

@@ -2,6 +2,7 @@ defmodule PetalBoilerplateWeb.ModelLive do
   use PetalBoilerplateWeb, :live_view
 
   alias PetalBoilerplate.Catalog
+  alias PetalBoilerplate.Catalog.Filters
 
   @impl true
   def handle_params(params, _uri, socket) do
@@ -13,8 +14,16 @@ defmodule PetalBoilerplateWeb.ModelLive do
     assign(socket, selected_model: model, page_title: model_title(model))
   end
 
-  defp apply_action(socket, :index, _params) do
-    assign(socket, selected_model: nil, page_title: "LLM Model Database")
+  defp apply_action(socket, :index, params) do
+    if connected?(socket) and socket.assigns.all_models != [] do
+      filters = Filters.from_params(params)
+
+      socket
+      |> assign(selected_model: nil, page_title: "LLM Model Database")
+      |> apply_filters(filters)
+    else
+      assign(socket, selected_model: nil, page_title: "LLM Model Database")
+    end
   end
 
   defp find_model_by_provider_and_id(models, provider, id) do
@@ -39,7 +48,7 @@ defmodule PetalBoilerplateWeb.ModelLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    default_filters = Catalog.default_filters()
+    default_filters = Filters.new()
     sort = Catalog.default_sort()
 
     if connected?(socket) do
@@ -62,8 +71,11 @@ defmodule PetalBoilerplateWeb.ModelLive do
          total_pages: total_pages,
          filters_open: false,
          search_value: default_filters.search,
-         active_filter_count: Catalog.active_filter_count(default_filters),
-         selected_model: nil
+         active_filter_count: Filters.active_filter_count(default_filters),
+         active_quick_filters: Filters.active_quick_filters(default_filters),
+         selected_model: nil,
+         selected_ids: MapSet.new(),
+         comparison_open: false
        )
        |> stream(:models, page_models, reset: true)}
     else
@@ -82,7 +94,10 @@ defmodule PetalBoilerplateWeb.ModelLive do
          filters_open: false,
          search_value: "",
          active_filter_count: 0,
-         selected_model: nil
+         active_quick_filters: [],
+         selected_model: nil,
+         selected_ids: MapSet.new(),
+         comparison_open: false
        )
        |> stream(:models, [])}
     end
@@ -90,22 +105,8 @@ defmodule PetalBoilerplateWeb.ModelLive do
 
   @impl true
   def handle_event("filter", params, socket) do
-    filters = Catalog.parse_filters(params)
-    filtered = Catalog.list_models(socket.assigns.all_models, filters, socket.assigns.sort)
-    {page_models, total, total_pages, page} = Catalog.paginate(filtered, 1)
-
-    {:noreply,
-     socket
-     |> assign(
-       filters: filters,
-       filtered_models: filtered,
-       total: total,
-       page: page,
-       total_pages: total_pages,
-       search_value: filters.search,
-       active_filter_count: Catalog.active_filter_count(filters)
-     )
-     |> stream(:models, page_models, reset: true)}
+    filters = Filters.from_params(params)
+    {:noreply, apply_filters(socket, filters, push_url: true)}
   end
 
   @impl true
@@ -170,8 +171,141 @@ defmodule PetalBoilerplateWeb.ModelLive do
     {:noreply, push_patch(socket, to: ~p"/")}
   end
 
+  @impl true
+  def handle_event("toggle_select", %{"id" => id}, socket) do
+    selected_ids = socket.assigns.selected_ids
+    max_selection = 4
+
+    selected_ids =
+      if MapSet.member?(selected_ids, id) do
+        MapSet.delete(selected_ids, id)
+      else
+        if MapSet.size(selected_ids) < max_selection do
+          MapSet.put(selected_ids, id)
+        else
+          selected_ids
+        end
+      end
+
+    {:noreply, assign(socket, selected_ids: selected_ids)}
+  end
+
+  @impl true
+  def handle_event("open_comparison", _params, socket) do
+    {:noreply, assign(socket, comparison_open: true)}
+  end
+
+  @impl true
+  def handle_event("close_comparison", _params, socket) do
+    {:noreply, assign(socket, comparison_open: false)}
+  end
+
+  @impl true
+  def handle_event("clear_comparison", _params, socket) do
+    {:noreply, assign(socket, selected_ids: MapSet.new(), comparison_open: false)}
+  end
+
+  @impl true
+  def handle_event("remove_from_comparison", %{"id" => id}, socket) do
+    {:noreply, assign(socket, selected_ids: MapSet.delete(socket.assigns.selected_ids, id))}
+  end
+
+  @impl true
+  def handle_event("quick_filter", %{"kind" => kind}, socket) do
+    filters = Filters.apply_quick_filter(socket.assigns.filters, kind)
+    {:noreply, apply_filters(socket, filters, push_url: true)}
+  end
+
+  @impl true
+  def handle_event("reset_filters", _params, socket) do
+    {:noreply, apply_filters(socket, Filters.new(), push_url: true)}
+  end
+
+  @impl true
+  def handle_event("select_all_providers", _params, socket) do
+    all_provider_ids = MapSet.new(Enum.map(socket.assigns.providers, & &1.id))
+    filters = Filters.set_providers(socket.assigns.filters, all_provider_ids)
+    {:noreply, apply_filters(socket, filters, push_url: true)}
+  end
+
+  @impl true
+  def handle_event("clear_providers", _params, socket) do
+    filters = Filters.clear_providers(socket.assigns.filters)
+    {:noreply, apply_filters(socket, filters, push_url: true)}
+  end
+
+  @impl true
+  def handle_event("set_min_context", %{"value" => value}, socket) do
+    context_value = parse_int_value(value)
+    filters = Filters.set_context_min(socket.assigns.filters, context_value)
+    {:noreply, apply_filters(socket, filters, push_url: true)}
+  end
+
+  @impl true
+  def handle_event("set_max_cost", %{"value" => value}, socket) do
+    cost_value = parse_float_value(value)
+    filters = Filters.set_cost_max(socket.assigns.filters, :input, cost_value)
+    {:noreply, apply_filters(socket, filters, push_url: true)}
+  end
+
   defp toggle_direction(:asc), do: :desc
   defp toggle_direction(:desc), do: :asc
+
+  defp apply_filters(socket, %Filters{} = filters, opts \\ []) do
+    filtered = Catalog.list_models(socket.assigns.all_models, filters, socket.assigns.sort)
+    {page_models, total, total_pages, page} = Catalog.paginate(filtered, 1)
+
+    socket =
+      socket
+      |> assign(
+        filters: filters,
+        filtered_models: filtered,
+        total: total,
+        page: page,
+        total_pages: total_pages,
+        search_value: filters.search,
+        active_filter_count: Filters.active_filter_count(filters),
+        active_quick_filters: Filters.active_quick_filters(filters)
+      )
+      |> stream(:models, page_models, reset: true)
+
+    if Keyword.get(opts, :push_url, false) do
+      url_params = Filters.to_params(filters)
+      push_patch(socket, to: ~p"/?#{url_params}", replace: true)
+    else
+      socket
+    end
+  end
+
+  defp selected_models(assigns) do
+    ids = MapSet.to_list(assigns.selected_ids)
+    Enum.filter(assigns.all_models, &(&1.id in ids))
+  end
+
+  defp parse_int_value(""), do: nil
+  defp parse_int_value(nil), do: nil
+
+  defp parse_int_value(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {int, _} -> int
+      :error -> nil
+    end
+  end
+
+  defp parse_int_value(value) when is_integer(value), do: value
+
+  defp parse_float_value(""), do: nil
+  defp parse_float_value(nil), do: nil
+
+  defp parse_float_value(value) when is_binary(value) do
+    case Float.parse(value) do
+      {float, _} -> float
+      :error -> nil
+    end
+  end
+
+  defp parse_float_value(value) when is_float(value), do: value
+  defp parse_float_value(value) when is_integer(value), do: value * 1.0
 
   def format_number(value), do: Catalog.format_number(value)
   def format_cost(value), do: Catalog.format_cost(value)

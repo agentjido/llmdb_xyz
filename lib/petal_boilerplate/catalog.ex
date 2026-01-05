@@ -8,13 +8,16 @@ defmodule PetalBoilerplate.Catalog do
   Models are cached in ETS after enrichment for fast access.
   """
 
+  alias PetalBoilerplate.Catalog.Filters
+
   @ets_table :catalog_models
   @default_page_size 50
 
   @capability_definitions [
     {:chat, [:chat], "Chat", "Supports conversational chat interactions"},
     {:embeddings, [:embeddings], "Embed", "Can generate text embeddings for semantic search"},
-    {:reasoning, [:reasoning, :enabled], "Reason", "Extended thinking and chain-of-thought reasoning"},
+    {:reasoning, [:reasoning, :enabled], "Reason",
+     "Extended thinking and chain-of-thought reasoning"},
     {:tools, [:tools, :enabled], "Tools", "Can call external tools and functions"},
     {:tools_streaming, [:tools, :streaming], nil, nil},
     {:tools_strict, [:tools, :strict], nil, nil},
@@ -87,8 +90,13 @@ defmodule PetalBoilerplate.Catalog do
 
   @doc """
   Filters and sorts models based on the given filters and sort configuration.
+  Accepts either a Filters struct or a map.
   """
-  def list_models(all_models, filters, sort) do
+  def list_models(all_models, %Filters{} = filters, sort) do
+    list_models(all_models, Filters.to_filter_map(filters), sort)
+  end
+
+  def list_models(all_models, filters, sort) when is_map(filters) do
     all_models
     |> filter_models(filters)
     |> sort_models(sort)
@@ -117,23 +125,10 @@ defmodule PetalBoilerplate.Catalog do
   def default_page_size, do: @default_page_size
 
   @doc """
-  Returns the default filter configuration.
+  Returns the default filter configuration as a Filters struct.
   """
   def default_filters do
-    %{
-      search: "",
-      provider_search: "",
-      provider_ids: MapSet.new(),
-      capabilities: default_capabilities(),
-      modalities_in: MapSet.new(),
-      modalities_out: MapSet.new(),
-      min_context: nil,
-      min_output: nil,
-      max_cost_in: nil,
-      max_cost_out: nil,
-      show_deprecated: false,
-      allowed_only: true
-    }
+    Filters.new()
   end
 
   @doc """
@@ -144,30 +139,22 @@ defmodule PetalBoilerplate.Catalog do
   end
 
   @doc """
-  Parses filter parameters from form input into a filters map.
-  Uses string comparisons for provider IDs and modalities to avoid atom exhaustion.
+  Parses filter parameters from form input into a Filters struct.
+  Delegates to Filters.from_params/1.
   """
   def parse_filters(params) do
-    %{
-      search: params["search"] || "",
-      provider_search: params["provider_search"] || "",
-      provider_ids: parse_provider_ids(params["providers"]),
-      capabilities: parse_capabilities(params),
-      modalities_in: parse_modalities(params["modalities_in"]),
-      modalities_out: parse_modalities(params["modalities_out"]),
-      min_context: parse_int(params["min_context"]),
-      min_output: parse_int(params["min_output"]),
-      max_cost_in: parse_float(params["max_cost_in"]),
-      max_cost_out: parse_float(params["max_cost_out"]),
-      show_deprecated: params["show_deprecated"] == "true",
-      allowed_only: params["allowed_only"] != "false"
-    }
+    Filters.from_params(params)
   end
 
   @doc """
   Counts the number of active filters for display in the UI.
+  Delegates to Filters.active_filter_count/1.
   """
-  def active_filter_count(filters) do
+  def active_filter_count(%Filters{} = filters) do
+    Filters.active_filter_count(filters)
+  end
+
+  def active_filter_count(filters) when is_map(filters) do
     count = 0
     count = if filters.search != "", do: count + 1, else: count
     count = count + MapSet.size(filters.provider_ids)
@@ -210,12 +197,6 @@ defmodule PetalBoilerplate.Catalog do
   end
 
   # Private functions
-
-  defp default_capabilities do
-    @capability_definitions
-    |> Enum.map(fn {key, _path, _label, _tooltip} -> {key, false} end)
-    |> Map.new()
-  end
 
   defp enrich_model(model) do
     aliases = Enum.join(model.aliases || [], " ")
@@ -350,50 +331,4 @@ defmodule PetalBoilerplate.Catalog do
 
   defp sort_direction(:asc), do: :asc
   defp sort_direction(:desc), do: :desc
-
-  defp parse_provider_ids(nil), do: MapSet.new()
-
-  defp parse_provider_ids(map) when is_map(map) do
-    map
-    |> Map.keys()
-    |> MapSet.new()
-  end
-
-  defp parse_capabilities(params) do
-    @capability_definitions
-    |> Enum.map(fn {key, _path, _label, _tooltip} ->
-      param_key = "cap_#{key}"
-      {key, params[param_key] == "true"}
-    end)
-    |> Map.new()
-  end
-
-  defp parse_modalities(nil), do: MapSet.new()
-
-  defp parse_modalities(map) when is_map(map) do
-    map
-    |> Map.keys()
-    |> Enum.map(&String.to_existing_atom/1)
-    |> MapSet.new()
-  end
-
-  defp parse_int(nil), do: nil
-  defp parse_int(""), do: nil
-
-  defp parse_int(str) when is_binary(str) do
-    case Integer.parse(str) do
-      {int, _} -> int
-      :error -> nil
-    end
-  end
-
-  defp parse_float(nil), do: nil
-  defp parse_float(""), do: nil
-
-  defp parse_float(str) when is_binary(str) do
-    case Float.parse(str) do
-      {float, _} -> float
-      :error -> nil
-    end
-  end
 end

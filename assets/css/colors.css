@@ -1,3 +1,4 @@
+/* Legacy Tailwind color scale - keep for backward compatibility during migration */
 @theme inline {
   --color-primary-50: var(--color-gray-50);
   --color-primary-100: var(--color-gray-100);
@@ -82,4 +83,174 @@
   --color-gray-800: var(--color-neutral-800);
   --color-gray-900: var(--color-neutral-900);
   --color-gray-950: var(--color-neutral-950);
+}
+
+/* New Lovable design tokens */
+@layer base {
+  :root {
+    --background: 0 0% 99%;
+    --foreground: 220 20% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 20% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 20% 10%;
+    --primary: 220 90% 56%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 220 20% 10%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 10% 46%;
+    --accent: 220 14% 93%;
+    --accent-foreground: 220 20% 10%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 220 90% 56%;
+    --radius: 0.5rem;
+
+    /* Provider accent colors */
+    --provider-openai: 158 64% 52%;
+    --provider-anthropic: 24 94% 53%;
+    --provider-google: 217 91% 60%;
+    --provider-meta: 214 89% 52%;
+    --provider-mistral: 280 68% 60%;
+    --provider-cohere: 199 89% 48%;
+
+    /* Capability badge colors */
+    --cap-chat: 158 64% 52%;
+    --cap-tools: 280 68% 60%;
+    --cap-vision: 217 91% 60%;
+    --cap-reason: 24 94% 53%;
+    --cap-stream: 199 89% 48%;
+    --cap-embed: 340 82% 52%;
+
+    /* Table-specific tokens */
+    --table-header: 220 14% 96%;
+    --table-row-hover: 220 14% 97%;
+    --table-row-selected: 220 90% 97%;
+    --table-border: 220 13% 91%;
+
+    /* Sidebar/comparison panel */
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 220 20% 10%;
+    --sidebar-primary: 220 90% 56%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 14% 96%;
+    --sidebar-accent-foreground: 220 20% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 220 90% 56%;
+  }
+
+  .dark {
+    --background: 224 25% 7%;
+    --foreground: 210 20% 95%;
+    --card: 224 25% 10%;
+    --card-foreground: 210 20% 95%;
+    --popover: 224 25% 10%;
+    --popover-foreground: 210 20% 95%;
+    --primary: 217 91% 60%;
+    --primary-foreground: 224 25% 7%;
+    --secondary: 224 20% 16%;
+    --secondary-foreground: 210 20% 95%;
+    --muted: 224 20% 16%;
+    --muted-foreground: 215 15% 55%;
+    --accent: 224 20% 20%;
+    --accent-foreground: 210 20% 95%;
+    --destructive: 0 62% 45%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 224 20% 18%;
+    --input: 224 20% 18%;
+    --ring: 217 91% 60%;
+
+    /* Provider accent colors - dark mode */
+    --provider-openai: 158 64% 45%;
+    --provider-anthropic: 24 94% 50%;
+    --provider-google: 217 91% 55%;
+    --provider-meta: 214 89% 50%;
+    --provider-mistral: 280 68% 55%;
+    --provider-cohere: 199 89% 45%;
+
+    /* Capability badge colors */
+    --cap-chat: 158 64% 45%;
+    --cap-tools: 280 68% 55%;
+    --cap-vision: 217 91% 55%;
+    --cap-reason: 24 94% 50%;
+    --cap-stream: 199 89% 45%;
+    --cap-embed: 340 82% 50%;
+
+    /* Table-specific tokens */
+    --table-header: 224 20% 12%;
+    --table-row-hover: 224 20% 14%;
+    --table-row-selected: 217 91% 15%;
+    --table-border: 224 20% 18%;
+
+    /* Sidebar/comparison panel */
+    --sidebar-background: 224 25% 9%;
+    --sidebar-foreground: 210 20% 95%;
+    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary-foreground: 224 25% 7%;
+    --sidebar-accent: 224 20% 16%;
+    --sidebar-accent-foreground: 210 20% 95%;
+    --sidebar-border: 224 20% 18%;
+    --sidebar-ring: 217 91% 60%;
+  }
+}
+
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  .font-mono {
+    font-family: 'JetBrains Mono', monospace;
+  }
+}
+
+@layer components {
+  .cap-badge {
+    @apply inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-md;
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: hsl(var(--muted));
+    border-radius: 3px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted-foreground) / 0.3);
+    border-radius: 3px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.5);
+  }
+
+  .scrollbar-none {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
 }

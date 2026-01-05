@@ -56,7 +56,7 @@ defmodule PetalBoilerplate.MixProject do
       {:petal_components, "~> 3.0"},
       {:plug_canonical_host, "~> 2.0"},
       {:rename_project, "~> 0.1.0", only: :dev},
-      {:llm_db, "~> 2025.12.1"},
+      {:llm_db, "~> 2026.1"},
       {:tidewave, "~> 0.5.1", only: [:dev, :test]}
     ]
   end
