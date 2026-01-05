@@ -3,7 +3,14 @@ defmodule PetalBoilerplateWeb.AboutLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    {:ok, assign(socket, page_title: "About")}
+    {:ok,
+     assign(socket,
+       page_title: "About",
+       page_description:
+         "Learn about llmdb.xyz - a comprehensive database of 2,000+ LLM models. Powered by the open-source llm_db Elixir package.",
+       og_url: "https://llmdb.xyz/about",
+       og_image: "https://llmdb.xyz/og/about.png"
+     )}
   end
 
   @impl true

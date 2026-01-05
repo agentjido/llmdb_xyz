@@ -67,6 +67,17 @@ defmodule PetalBoilerplate.Catalog do
   end
 
   @doc """
+  Finds a single model by provider and model_id.
+  Used for direct lookups (e.g., for OG meta tags on initial page load).
+  """
+  def find_model(provider, model_id) do
+    list_all_models()
+    |> Enum.find(fn m ->
+      to_string(m.provider) == provider && m.model_id == model_id
+    end)
+  end
+
+  @doc """
   Returns all models, enriched with computed fields for fast filtering.
   Uses ETS cache if available, otherwise loads and caches.
   """

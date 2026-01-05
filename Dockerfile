@@ -72,7 +72,12 @@ ENV APP_REVISION=$COMMIT
 
 RUN apt-get update -y && apt-get install -y libstdc++6 openssl libncurses5 locales ca-certificates \
   nodejs npm vim curl wget xz-utils \
+  # Chromium and dependencies for ChromicPDF OG image generation
+  chromium chromium-sandbox fonts-liberation fonts-noto-color-emoji \
   && apt-get clean && rm -f /var/lib/apt/lists/*_*
+
+# Set Chromium path for ChromicPDF
+ENV CHROMIC_PDF_CHROME_EXECUTABLE=/usr/bin/chromium
 
 # Set the locale
 RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen

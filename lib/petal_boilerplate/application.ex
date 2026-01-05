@@ -25,10 +25,12 @@ defmodule PetalBoilerplate.Application do
       {Phoenix.PubSub, name: PetalBoilerplate.PubSub},
       # Start Finch
       {Finch, name: PetalBoilerplate.Finch},
+      # Start ChromicPDF for OG image generation
+      ChromicPDF,
+      # Start OG image cache
+      PetalBoilerplate.OGImage,
       # Start the Endpoint (http/https)
       PetalBoilerplateWeb.Endpoint
-      # Start a worker by calling: PetalBoilerplate.Worker.start_link(arg)
-      # {PetalBoilerplate.Worker, arg}
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html

@@ -10,8 +10,16 @@ defmodule PetalBoilerplateWeb.ModelLive do
   end
 
   defp apply_action(socket, :show, %{"provider" => provider, "id" => id}) do
-    model = find_model_by_provider_and_id(socket.assigns.all_models, provider, id)
-    assign(socket, selected_model: model, page_title: model_title(model))
+    model =
+      if socket.assigns.all_models == [] do
+        Catalog.find_model(provider, id)
+      else
+        find_model_by_provider_and_id(socket.assigns.all_models, provider, id)
+      end
+
+    socket
+    |> assign_og_meta(:show, model)
+    |> assign(selected_model: model)
   end
 
   defp apply_action(socket, :index, params) do
@@ -19,10 +27,10 @@ defmodule PetalBoilerplateWeb.ModelLive do
       filters = Filters.from_params(params)
 
       socket
-      |> assign(selected_model: nil, page_title: "LLM Model Database")
+      |> assign(selected_model: nil)
       |> apply_filters(filters)
     else
-      assign(socket, selected_model: nil, page_title: "LLM Model Database")
+      assign(socket, selected_model: nil)
     end
   end
 
@@ -31,9 +39,6 @@ defmodule PetalBoilerplateWeb.ModelLive do
       to_string(m.provider) == provider && m.model_id == id
     end)
   end
-
-  defp model_title(nil), do: "Model Not Found"
-  defp model_title(model), do: "#{model.name || model.model_id} - #{model.provider}"
 
   @sort_fields %{
     "provider" => :provider,
@@ -59,8 +64,8 @@ defmodule PetalBoilerplateWeb.ModelLive do
 
       {:ok,
        socket
+       |> assign_og_meta(:index, nil)
        |> assign(
-         page_title: "LLM Model Database",
          providers: providers,
          all_models: all_models,
          filtered_models: filtered,
@@ -81,8 +86,8 @@ defmodule PetalBoilerplateWeb.ModelLive do
     else
       {:ok,
        socket
+       |> assign_og_meta(:index, nil)
        |> assign(
-         page_title: "LLM Model Database",
          providers: [],
          all_models: [],
          filtered_models: [],
@@ -309,4 +314,100 @@ defmodule PetalBoilerplateWeb.ModelLive do
 
   def format_number(value), do: Catalog.format_number(value)
   def format_cost(value), do: Catalog.format_cost(value)
+
+  defp assign_og_meta(socket, :index, _model) do
+    assign(socket,
+      page_title: "LLM Model Database",
+      page_description:
+        "Browse and compare 2,000+ LLM models from OpenAI, Anthropic, Google, Mistral, and more. Filter by capabilities, pricing, and context windows.",
+      og_url: "https://llmdb.xyz/",
+      og_image: "https://llmdb.xyz/og/home.png"
+    )
+  end
+
+  defp assign_og_meta(socket, :show, nil) do
+    assign(socket,
+      page_title: "Model Not Found",
+      page_description: "The requested model could not be found.",
+      og_url: "https://llmdb.xyz/",
+      og_image: "https://llmdb.xyz/og/default.png"
+    )
+  end
+
+  defp assign_og_meta(socket, :show, model) do
+    model_id = Map.get(model, :model_id) || model.id
+    title = "#{model.name || model_id} - #{model.provider}"
+
+    description =
+      build_model_description(model)
+
+    assign(socket,
+      page_title: title,
+      page_description: description,
+      og_url: "https://llmdb.xyz/models/#{model.provider}/#{model_id}",
+      og_image: "https://llmdb.xyz/og/model/#{model.provider}/#{model_id}.png"
+    )
+  end
+
+  defp build_model_description(model) do
+    context = get_model_context(model)
+    cost_in = get_model_cost_in(model)
+    cost_out = get_model_cost_out(model)
+    model_id = Map.get(model, :model_id) || model.id
+
+    parts = []
+
+    parts =
+      if context do
+        parts ++ ["#{format_number(context)} context"]
+      else
+        parts
+      end
+
+    parts =
+      if cost_in do
+        parts ++ ["$#{Catalog.format_cost(cost_in)}/M input"]
+      else
+        parts
+      end
+
+    parts =
+      if cost_out do
+        parts ++ ["$#{Catalog.format_cost(cost_out)}/M output"]
+      else
+        parts
+      end
+
+    base = "#{model.name || model_id} by #{model.provider}"
+
+    if parts == [] do
+      base <> " - View specs and compare with other LLMs on llmdb.xyz"
+    else
+      base <> " - " <> Enum.join(parts, ", ") <> ". Compare LLMs on llmdb.xyz"
+    end
+  end
+
+  defp get_model_context(model) do
+    case model do
+      %{__context: ctx} when is_integer(ctx) and ctx > 0 -> ctx
+      %{limits: %{context: ctx}} when is_integer(ctx) -> ctx
+      _ -> nil
+    end
+  end
+
+  defp get_model_cost_in(model) do
+    case model do
+      %{__cost_in: cost} when is_number(cost) -> cost
+      %{cost: %{input: cost}} when is_number(cost) -> cost
+      _ -> nil
+    end
+  end
+
+  defp get_model_cost_out(model) do
+    case model do
+      %{__cost_out: cost} when is_number(cost) -> cost
+      %{cost: %{output: cost}} when is_number(cost) -> cost
+      _ -> nil
+    end
+  end
 end

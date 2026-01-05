@@ -57,7 +57,8 @@ defmodule PetalBoilerplate.MixProject do
       {:plug_canonical_host, "~> 2.0"},
       {:rename_project, "~> 0.1.0", only: :dev},
       {:llm_db, "~> 2026.1"},
-      {:tidewave, "~> 0.5.1", only: [:dev, :test]}
+      {:tidewave, "~> 0.5.1", only: [:dev, :test]},
+      {:chromic_pdf, "~> 1.17"}
     ]
   end
 
@@ -69,10 +70,7 @@ defmodule PetalBoilerplate.MixProject do
   # See the documentation for `Mix` for more info on aliases.
   defp aliases do
     [
-      setup: ["deps.get", "ecto.setup", "assets.setup", "assets.build"],
-      "ecto.setup": ["ecto.create", "ecto.migrate", "run priv/repo/seeds.exs"],
-      "ecto.reset": ["ecto.drop", "ecto.setup"],
-      test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
+      setup: ["deps.get", "assets.setup", "assets.build"],
       "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing"],
       "assets.build": ["tailwind default", "esbuild default"],
       "assets.deploy": ["tailwind default --minify", "esbuild default --minify", "phx.digest"]
