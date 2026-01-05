@@ -25,9 +25,7 @@ defmodule PetalBoilerplate.Application do
       {Phoenix.PubSub, name: PetalBoilerplate.PubSub},
       # Start Finch
       {Finch, name: PetalBoilerplate.Finch},
-      # Start ChromicPDF for OG image generation
-      ChromicPDF,
-      # Start OG image cache
+      # Start OG image cache (uses Image/libvips for SVG->PNG)
       PetalBoilerplate.OGImage,
       # Start the Endpoint (http/https)
       PetalBoilerplateWeb.Endpoint

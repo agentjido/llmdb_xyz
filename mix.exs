@@ -58,7 +58,7 @@ defmodule PetalBoilerplate.MixProject do
       {:rename_project, "~> 0.1.0", only: :dev},
       {:llm_db, "~> 2026.1"},
       {:tidewave, "~> 0.5.1", only: [:dev, :test]},
-      {:chromic_pdf, "~> 1.17"}
+      {:image, "~> 0.54"}
     ]
   end
 

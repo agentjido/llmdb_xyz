@@ -34,9 +34,21 @@ defmodule PetalBoilerplateWeb.OGImageController do
     |> send_resp(200, png_data)
   end
 
-  defp serve_image(conn, {:error, reason}) do
-    conn
-    |> put_resp_content_type("text/plain")
-    |> send_resp(500, "Error generating image: #{inspect(reason)}")
+  defp serve_image(conn, {:error, _reason}) do
+    fallback_path =
+      Application.app_dir(:petal_boilerplate, "priv/static/images/og-default.png")
+
+    case File.read(fallback_path) do
+      {:ok, png} ->
+        conn
+        |> put_resp_content_type("image/png")
+        |> put_resp_header("cache-control", "public, max-age=86400")
+        |> send_resp(200, png)
+
+      {:error, _} ->
+        conn
+        |> put_resp_content_type("text/plain")
+        |> send_resp(500, "Error generating image")
+    end
   end
 end
