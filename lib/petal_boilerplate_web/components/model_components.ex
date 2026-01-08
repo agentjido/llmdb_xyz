@@ -917,14 +917,12 @@ defmodule PetalBoilerplateWeb.ModelComponents do
       :if={@model}
       id="model-detail-modal"
       class="fixed inset-0 z-50 flex items-center justify-center"
-      phx-click="close_model"
     >
-      <div class="fixed inset-0 bg-black/50 backdrop-blur-sm" />
+      <div class="fixed inset-0 bg-black/50 backdrop-blur-sm" phx-click="close_model" />
       <div
         class="relative z-10 w-full max-w-3xl max-h-[85vh] overflow-y-auto rounded-lg border shadow-lg m-4"
         style="border-color: hsl(var(--border)); background-color: hsl(var(--background));"
         phx-click-away="close_model"
-        onclick="event.stopPropagation()"
       >
         <div class="p-6">
           <div class="flex items-center gap-2 mb-1">
