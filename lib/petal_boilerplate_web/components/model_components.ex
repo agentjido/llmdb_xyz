@@ -9,6 +9,10 @@ defmodule PetalBoilerplateWeb.ModelComponents do
   # Task 2.1: Header Component
   # =============================================================================
 
+  defp llm_db_version do
+    Application.spec(:llm_db, :vsn) |> to_string()
+  end
+
   attr :search_value, :string, required: true
 
   def header(assigns) do
@@ -55,6 +59,18 @@ defmodule PetalBoilerplateWeb.ModelComponents do
             />
           </div>
         </form>
+
+        <a
+          href="https://hex.pm/packages/llm_db"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="text-xs hidden sm:flex items-center gap-1 px-2 py-1 rounded border transition-colors hover:opacity-80"
+          style="color: hsl(var(--muted-foreground)); border-color: hsl(var(--border));"
+          title="View llm_db package on Hex"
+        >
+          <.icon name="hero-cube" class="h-3 w-3" />
+          llm_db v{llm_db_version()}
+        </a>
 
         <a
           href="/about"
