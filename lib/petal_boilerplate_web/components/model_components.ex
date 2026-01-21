@@ -94,7 +94,7 @@ defmodule PetalBoilerplateWeb.ModelComponents do
             </svg>
           </a>
           <a
-            href="https://github.com/mikehostetler/llmdb_xyz"
+            href="https://github.com/agentjido/llm_db"
             target="_blank"
             rel="noopener noreferrer"
             title="GitHub"
