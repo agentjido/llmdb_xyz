@@ -35,7 +35,7 @@ defmodule PetalBoilerplate.MixProject do
       {:phoenix, "~> 1.7.17"},
       {:phoenix_html, "~> 4.1"},
       {:phoenix_live_reload, "~> 1.6", only: [:dev, :test]},
-      {:phoenix_live_view, "~> 1.0.4"},
+      {:phoenix_live_view, "~> 1.1.22"},
       {:heroicons,
        github: "tailwindlabs/heroicons",
        tag: "v2.1.5",
