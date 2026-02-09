@@ -36,7 +36,9 @@ defmodule PetalBoilerplateWeb.OgMetaTest do
       html = html_response(conn, 200)
 
       assert html =~ ~s(property="og:title" content="Model Not Found")
-      assert html =~ ~s(property="og:description" content="The requested model could not be found.")
+
+      assert html =~
+               ~s(property="og:description" content="The requested model could not be found.")
     end
 
     test "Twitter card tags are present", %{conn: conn} do

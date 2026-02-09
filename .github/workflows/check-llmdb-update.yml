@@ -1,0 +1,107 @@
+name: Check for llm_db updates
+
+on:
+  schedule:
+    # Run daily at 06:00 UTC
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  check-update:
+    name: Check for new llm_db release
+    runs-on: ubuntu-latest
+
+    env:
+      MIX_ENV: dev
+      ELIXIR_VERSION: "1.18.2"
+      OTP_VERSION: "27.2.1"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: ${{ env.ELIXIR_VERSION }}
+          otp-version: ${{ env.OTP_VERSION }}
+
+      - name: Cache deps
+        uses: actions/cache@v4
+        with:
+          path: deps
+          key: deps-${{ runner.os }}-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-${{ hashFiles('mix.lock') }}
+          restore-keys: deps-${{ runner.os }}-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-
+
+      - name: Get current llm_db version from lock
+        id: current
+        run: |
+          current=$(grep -A1 '"llm_db"' mix.lock | grep -oP '\d+\.\d+\.\d+' | head -1)
+          echo "version=$current" >> "$GITHUB_OUTPUT"
+          echo "Current llm_db version: $current"
+
+      - name: Check latest llm_db version on Hex
+        id: latest
+        run: |
+          latest=$(curl -sf https://hex.pm/api/packages/llm_db | python3 -c "import sys,json; releases=json.load(sys.stdin)['releases']; print(releases[0]['version'])")
+          echo "version=$latest" >> "$GITHUB_OUTPUT"
+          echo "Latest llm_db version on Hex: $latest"
+
+      - name: Compare versions
+        id: compare
+        run: |
+          if [ "${{ steps.current.outputs.version }}" = "${{ steps.latest.outputs.version }}" ]; then
+            echo "already_latest=true" >> "$GITHUB_OUTPUT"
+            echo "Already on latest version, nothing to do."
+          else
+            echo "already_latest=false" >> "$GITHUB_OUTPUT"
+            echo "New version available: ${{ steps.latest.outputs.version }} (current: ${{ steps.current.outputs.version }})"
+          fi
+
+      - name: Check for existing PR
+        if: steps.compare.outputs.already_latest == 'false'
+        id: existing_pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          branch="auto/update-llm-db-${{ steps.latest.outputs.version }}"
+          pr_count=$(gh pr list --head "$branch" --state open --json number --jq 'length')
+          if [ "$pr_count" -gt 0 ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "PR already exists for this version."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Update llm_db dependency
+        if: steps.compare.outputs.already_latest == 'false' && steps.existing_pr.outputs.exists == 'false'
+        run: |
+          mix local.hex --force
+          mix local.rebar --force
+          mix deps.update llm_db
+
+      - name: Create Pull Request
+        if: steps.compare.outputs.already_latest == 'false' && steps.existing_pr.outputs.exists == 'false'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: auto/update-llm-db-${{ steps.latest.outputs.version }}
+          commit-message: "mix: update llm_db to ${{ steps.latest.outputs.version }}"
+          title: "Update llm_db to ${{ steps.latest.outputs.version }}"
+          body: |
+            Automated update of `llm_db` dependency.
+
+            **Current version:** ${{ steps.current.outputs.version }}
+            **New version:** ${{ steps.latest.outputs.version }}
+
+            [Changelog on Hex](https://hex.pm/packages/llm_db/versions)
+
+            ---
+            _This PR was created automatically by the [check-llmdb-update](.github/workflows/check-llmdb-update.yml) workflow._
+          labels: |
+            dependencies
+            elixir
+            automated

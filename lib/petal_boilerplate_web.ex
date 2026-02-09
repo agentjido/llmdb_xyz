@@ -21,7 +21,7 @@ defmodule PetalBoilerplateWeb do
 
   def router do
     quote do
-      use Phoenix.Router, helpers: false
+      use Phoenix.Router
 
       # Import common connection and controller functions to use in pipelines
       import Plug.Conn
@@ -88,6 +88,7 @@ defmodule PetalBoilerplateWeb do
       use Gettext, backend: PetalBoilerplateWeb.Gettext
       # Shortcut for generating JS commands
       alias Phoenix.LiveView.JS
+      alias PetalBoilerplateWeb.Layouts
 
       # Routes generation with the ~p sigil
       unquote(verified_routes())

@@ -68,8 +68,7 @@ defmodule PetalBoilerplateWeb.ModelComponents do
           style="color: hsl(var(--muted-foreground)); border-color: hsl(var(--border));"
           title="View llm_db package on Hex"
         >
-          <.icon name="hero-cube" class="h-3 w-3" />
-          llm_db v{llm_db_version()}
+          <.icon name="hero-cube" class="h-3 w-3" /> llm_db v{llm_db_version()}
         </a>
 
         <a
@@ -235,46 +234,37 @@ defmodule PetalBoilerplateWeb.ModelComponents do
               style="color: hsl(var(--muted-foreground));"
             />
 
-            <.filter_dropdown label={"Provider #{provider_count_label(@filters)}"}>
+            <.filter_dropdown
+              label={"Provider #{provider_count_label(@filters)}"}
+              active={MapSet.size(@filters.provider_ids) > 0}
+            >
               <.provider_filter_content providers={@providers} filters={@filters} />
             </.filter_dropdown>
 
-            <.filter_dropdown label="Capabilities">
+            <.filter_dropdown
+              label="Capabilities"
+              active={has_capability_filters?(@filters.capabilities)}
+            >
               <.capabilities_filter_content filters={@filters} />
             </.filter_dropdown>
 
-            <.filter_dropdown label={"Context #{context_label(@filters)}"}>
+            <.filter_dropdown
+              label={"Context #{context_label(@filters)}"}
+              active={@filters.min_context != nil}
+            >
               <.context_filter_content filters={@filters} />
             </.filter_dropdown>
 
-            <.filter_dropdown label={"Cost #{cost_label(@filters)}"}>
+            <.filter_dropdown
+              label={"Cost #{cost_label(@filters)}"}
+              active={@filters.max_cost_in != nil or @filters.max_cost_out != nil}
+            >
               <.cost_filter_content filters={@filters} />
             </.filter_dropdown>
 
-            <div class="flex flex-wrap gap-1 ml-2">
-              <%= for provider <- selected_provider_badges(@filters, @providers) |> Enum.take(3) do %>
-                <span
-                  class="inline-flex items-center gap-1 h-6 px-2 text-xs rounded-md"
-                  style="background-color: hsl(var(--secondary)); color: hsl(var(--secondary-foreground));"
-                >
-                  {provider.name}
-                  <button
-                    type="button"
-                    phx-click="remove_provider"
-                    phx-value-id={provider.id}
-                    class="hover:opacity-70"
-                  >
-                    <.icon name="hero-x-mark" class="h-3 w-3" />
-                  </button>
-                </span>
-              <% end %>
-              <%= if length(selected_provider_badges(@filters, @providers)) > 3 do %>
-                <span
-                  class="inline-flex items-center h-6 px-2 text-xs rounded-md"
-                  style="background-color: hsl(var(--secondary)); color: hsl(var(--secondary-foreground));"
-                >
-                  +{length(selected_provider_badges(@filters, @providers)) - 3} more
-                </span>
+            <div class="flex flex-wrap gap-1 ml-2 overflow-x-auto scrollbar-none">
+              <%= for chip <- active_filter_chips(@filters, @providers) do %>
+                <.filter_chip label={chip.label} kind={chip.kind} filter_value={chip.value} />
               <% end %>
             </div>
 
@@ -311,18 +301,8 @@ defmodule PetalBoilerplateWeb.ModelComponents do
             </button>
 
             <div class="flex items-center gap-1.5 overflow-x-auto scrollbar-none flex-1">
-              <%= for qf <- Enum.filter(@quick_filters, &(&1.key in @active_quick_filters)) |> Enum.take(3) do %>
-                <button
-                  type="button"
-                  phx-click="quick_filter"
-                  phx-value-kind={to_string(qf.key)}
-                  class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium shrink-0"
-                  style="background-color: hsl(var(--primary)); color: hsl(var(--primary-foreground));"
-                >
-                  <.icon name={qf.icon} class="h-3.5 w-3.5" />
-                  <span>{qf.label}</span>
-                  <.icon name="hero-x-mark" class="h-3 w-3" />
-                </button>
+              <%= for chip <- active_filter_chips(@filters, @providers) do %>
+                <.filter_chip label={chip.label} kind={chip.kind} filter_value={chip.value} />
               <% end %>
             </div>
           </div>
@@ -357,6 +337,7 @@ defmodule PetalBoilerplateWeb.ModelComponents do
   end
 
   attr :label, :string, required: true
+  attr :active, :boolean, default: false
   slot :inner_block, required: true
 
   defp filter_dropdown(assigns) do
@@ -365,10 +346,23 @@ defmodule PetalBoilerplateWeb.ModelComponents do
       <button
         type="button"
         class="h-8 px-3 text-sm rounded-md border flex items-center gap-1 transition-colors hover:opacity-80"
-        style="border-color: hsl(var(--border)); background-color: hsl(var(--background));"
+        style={
+          if @active,
+            do:
+              "border-color: hsl(var(--primary)); background-color: hsl(var(--primary) / 0.1); color: hsl(var(--primary));",
+            else: "border-color: hsl(var(--border)); background-color: hsl(var(--background));"
+        }
       >
         {@label}
-        <.icon name="hero-chevron-down" class="h-3 w-3" style="color: hsl(var(--muted-foreground));" />
+        <.icon
+          name="hero-chevron-down"
+          class="h-3 w-3"
+          style={
+            if @active,
+              do: "color: hsl(var(--primary));",
+              else: "color: hsl(var(--muted-foreground));"
+          }
+        />
       </button>
       <div
         class="absolute left-0 top-full mt-1 hidden group-focus-within:block hover:block rounded-md border shadow-lg z-50"
@@ -393,16 +387,16 @@ defmodule PetalBoilerplateWeb.ModelComponents do
             class="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5"
             style="color: hsl(var(--muted-foreground));"
           />
-          <input
-            type="text"
-            name="provider_search"
-            value={@filters.provider_search}
-            placeholder="Search providers..."
-            class="h-8 w-full pl-7 text-sm rounded-md border-0"
-            style="background-color: hsl(var(--secondary));"
-            phx-change="filter"
-            phx-debounce="200"
-          />
+          <form phx-change="provider_search" phx-debounce="200">
+            <input
+              type="text"
+              name="provider_search"
+              value={@filters.provider_search}
+              placeholder="Search providers..."
+              class="h-8 w-full pl-7 text-sm rounded-md border-0"
+              style="background-color: hsl(var(--secondary));"
+            />
+          </form>
         </div>
       </div>
       <div
@@ -426,25 +420,24 @@ defmodule PetalBoilerplateWeb.ModelComponents do
         </button>
       </div>
       <div class="max-h-[280px] overflow-y-auto p-1">
-        <form phx-change="filter">
-          <%= for provider <- filtered_providers(@providers, @filters.provider_search) do %>
-            <label
-              class="flex items-center gap-2 cursor-pointer rounded px-2 py-1.5 hover:opacity-80"
-              style="background-color: transparent;"
-              onmouseover="this.style.backgroundColor='hsl(var(--accent))'"
-              onmouseout="this.style.backgroundColor='transparent'"
-            >
-              <input
-                type="checkbox"
-                name={"providers[#{provider.id}]"}
-                checked={MapSet.member?(@filters.provider_ids, provider.id)}
-                class="rounded"
-                style="border-color: hsl(var(--border));"
-              />
-              <span class="text-sm truncate">{provider.name}</span>
-            </label>
-          <% end %>
-        </form>
+        <%= for provider <- filtered_providers(@providers, @filters.provider_search) do %>
+          <div
+            class="flex items-center gap-2 cursor-pointer rounded px-2 py-1.5 hover:opacity-80"
+            style="background-color: transparent;"
+            onmouseover="this.style.backgroundColor='hsl(var(--accent))'"
+            onmouseout="this.style.backgroundColor='transparent'"
+            phx-click="toggle_provider"
+            phx-value-id={provider.id}
+          >
+            <input
+              type="checkbox"
+              checked={MapSet.member?(@filters.provider_ids, to_string(provider.id))}
+              class="rounded pointer-events-none"
+              style="border-color: hsl(var(--border));"
+            />
+            <span class="text-sm truncate">{provider.name}</span>
+          </div>
+        <% end %>
       </div>
     </div>
     """
@@ -510,11 +503,11 @@ defmodule PetalBoilerplateWeb.ModelComponents do
       <div class="text-xs font-medium mb-2">Minimum context window</div>
       <div class="grid grid-cols-3 gap-1">
         <%= for {val, label} <- @context_options do %>
-          <button
-            type="button"
+          <div
+            role="button"
             phx-click="set_min_context"
             phx-value-value={val}
-            class="px-2 py-1.5 text-xs rounded transition-colors"
+            class="px-2 py-1.5 text-xs rounded transition-colors cursor-pointer text-center"
             style={
               if @filters.min_context == val,
                 do: "background-color: hsl(var(--primary)); color: hsl(var(--primary-foreground));",
@@ -522,7 +515,7 @@ defmodule PetalBoilerplateWeb.ModelComponents do
             }
           >
             {label}
-          </button>
+          </div>
         <% end %>
       </div>
     </div>
@@ -548,11 +541,11 @@ defmodule PetalBoilerplateWeb.ModelComponents do
       <div class="text-xs font-medium mb-2">Max input cost (per 1M tokens)</div>
       <div class="grid grid-cols-2 gap-1">
         <%= for {val, label} <- @cost_options do %>
-          <button
-            type="button"
+          <div
+            role="button"
             phx-click="set_max_cost"
             phx-value-value={val || ""}
-            class="px-2 py-1.5 text-xs rounded transition-colors"
+            class="px-2 py-1.5 text-xs rounded transition-colors cursor-pointer text-center"
             style={
               if @filters.max_cost_in == val,
                 do: "background-color: hsl(var(--primary)); color: hsl(var(--primary-foreground));",
@@ -560,7 +553,7 @@ defmodule PetalBoilerplateWeb.ModelComponents do
             }
           >
             {label}
-          </button>
+          </div>
         <% end %>
       </div>
     </div>
@@ -589,14 +582,20 @@ defmodule PetalBoilerplateWeb.ModelComponents do
   end
 
   defp selected_provider_badges(filters, providers) do
-    Enum.filter(providers, &MapSet.member?(filters.provider_ids, &1.id))
+    Enum.filter(providers, &MapSet.member?(filters.provider_ids, to_string(&1.id)))
   end
 
   defp has_active_filters?(filters) do
     MapSet.size(filters.provider_ids) > 0 ||
-      (filters.min_context && filters.min_context > 0) ||
-      (filters.max_cost_in && filters.max_cost_in < 100) ||
-      has_capability_filters?(filters.capabilities)
+      (filters.min_context != nil && filters.min_context > 0) ||
+      filters.min_output != nil ||
+      filters.max_cost_in != nil ||
+      filters.max_cost_out != nil ||
+      has_capability_filters?(filters.capabilities) ||
+      MapSet.size(filters.modalities_in) > 0 ||
+      MapSet.size(filters.modalities_out) > 0 ||
+      filters.show_deprecated ||
+      not filters.allowed_only
   end
 
   defp has_capability_filters?(capabilities) do
@@ -613,6 +612,151 @@ defmodule PetalBoilerplateWeb.ModelComponents do
   end
 
   defp get_capability_filter(_, _), do: false
+
+  attr :label, :string, required: true
+  attr :kind, :string, required: true
+  attr :filter_value, :string, default: nil
+
+  defp filter_chip(assigns) do
+    ~H"""
+    <span
+      class="inline-flex items-center gap-1 h-6 px-2 text-xs rounded-md shrink-0"
+      style="background-color: hsl(var(--primary) / 0.15); color: hsl(var(--primary)); border: 1px solid hsl(var(--primary) / 0.3);"
+    >
+      {@label}
+      <button
+        type="button"
+        phx-click="remove_filter"
+        phx-value-kind={@kind}
+        phx-value-filter_value={@filter_value}
+        class="hover:opacity-70 ml-0.5"
+      >
+        <.icon name="hero-x-mark" class="h-3 w-3" />
+      </button>
+    </span>
+    """
+  end
+
+  defp active_filter_chips(filters, providers) do
+    chips = []
+
+    chips =
+      chips ++
+        Enum.map(selected_provider_badges(filters, providers), fn provider ->
+          %{label: provider.name, kind: "provider", value: provider.id}
+        end)
+
+    chips =
+      chips ++
+        (filters.capabilities
+         |> Enum.filter(fn {_k, v} -> v end)
+         |> Enum.map(fn {k, _v} ->
+           %{label: capability_chip_label(k), kind: "capability", value: to_string(k)}
+         end))
+
+    chips =
+      chips ++
+        (filters.modalities_in
+         |> MapSet.to_list()
+         |> Enum.map(fn mod ->
+           %{label: "In: #{mod_label(mod)}", kind: "modality_in", value: to_string(mod)}
+         end))
+
+    chips =
+      chips ++
+        (filters.modalities_out
+         |> MapSet.to_list()
+         |> Enum.map(fn mod ->
+           %{label: "Out: #{mod_label(mod)}", kind: "modality_out", value: to_string(mod)}
+         end))
+
+    chips =
+      if filters.min_context && filters.min_context > 0 do
+        chips ++
+          [
+            %{
+              label: "Ctx ≥ #{format_context(filters.min_context)}",
+              kind: "min_context",
+              value: nil
+            }
+          ]
+      else
+        chips
+      end
+
+    chips =
+      if filters.min_output && filters.min_output > 0 do
+        chips ++
+          [
+            %{
+              label: "Out ≥ #{format_context(filters.min_output)}",
+              kind: "min_output",
+              value: nil
+            }
+          ]
+      else
+        chips
+      end
+
+    chips =
+      if filters.max_cost_in do
+        chips ++
+          [%{label: "In ≤ $#{filters.max_cost_in}/M", kind: "max_cost_in", value: nil}]
+      else
+        chips
+      end
+
+    chips =
+      if filters.max_cost_out do
+        chips ++
+          [%{label: "Out ≤ $#{filters.max_cost_out}/M", kind: "max_cost_out", value: nil}]
+      else
+        chips
+      end
+
+    chips =
+      if filters.show_deprecated do
+        chips ++ [%{label: "Deprecated", kind: "show_deprecated", value: nil}]
+      else
+        chips
+      end
+
+    chips =
+      if not filters.allowed_only do
+        chips ++ [%{label: "Include disallowed", kind: "allowed_only", value: nil}]
+      else
+        chips
+      end
+
+    chips
+  end
+
+  defp capability_chip_label(cap) do
+    case cap do
+      :chat -> "Chat"
+      :tools -> "Tools"
+      :vision -> "Vision"
+      :reasoning -> "Reasoning"
+      :embeddings -> "Embeddings"
+      :json_native -> "JSON"
+      :streaming_text -> "Streaming"
+      other -> to_string(other) |> String.capitalize()
+    end
+  end
+
+  defp mod_label(mod) do
+    case mod do
+      :text -> "Text"
+      :image -> "Image"
+      :audio -> "Audio"
+      :video -> "Video"
+      other -> to_string(other) |> String.capitalize()
+    end
+  end
+
+  defp format_context(value) when value >= 1_000_000, do: "#{div(value, 1_000_000)}M"
+  defp format_context(value) when value >= 1000, do: "#{div(value, 1000)}K"
+  defp format_context(value), do: to_string(value)
 
   defp active_filter_count(%Filters{} = filters) do
     Filters.active_filter_count(filters)
@@ -1557,7 +1701,7 @@ defmodule PetalBoilerplateWeb.ModelComponents do
                         <input
                           type="checkbox"
                           name={"providers[#{provider.id}]"}
-                          checked={MapSet.member?(@filters.provider_ids, provider.id)}
+                          checked={MapSet.member?(@filters.provider_ids, to_string(provider.id))}
                           class="rounded"
                           style="border-color: hsl(var(--border));"
                         />
@@ -1770,15 +1914,16 @@ defmodule PetalBoilerplateWeb.ModelComponents do
   end
 
   defp filtered_providers(providers, search_term) do
-    if search_term == "" do
-      providers
-    else
-      search_term = String.downcase(search_term)
-
-      Enum.filter(providers, fn provider ->
+    providers
+    |> Enum.filter(fn provider ->
+      if search_term == "" do
+        true
+      else
+        search_term = String.downcase(search_term)
         String.contains?(String.downcase(to_string(provider.name)), search_term)
-      end)
-    end
+      end
+    end)
+    |> Enum.sort_by(& &1.name)
   end
 
   defp lifecycle_status(model) do

@@ -228,7 +228,7 @@ defmodule PetalBoilerplateWeb.ModelLive do
 
   @impl true
   def handle_event("select_all_providers", _params, socket) do
-    all_provider_ids = MapSet.new(Enum.map(socket.assigns.providers, & &1.id))
+    all_provider_ids = MapSet.new(Enum.map(socket.assigns.providers, &to_string(&1.id)))
     filters = Filters.set_providers(socket.assigns.filters, all_provider_ids)
     {:noreply, apply_filters(socket, filters, push_url: true)}
   end
@@ -236,6 +236,87 @@ defmodule PetalBoilerplateWeb.ModelLive do
   @impl true
   def handle_event("clear_providers", _params, socket) do
     filters = Filters.clear_providers(socket.assigns.filters)
+    {:noreply, apply_filters(socket, filters, push_url: true)}
+  end
+
+  @impl true
+  def handle_event("toggle_provider", %{"id" => id}, socket) do
+    filters = socket.assigns.filters
+    provider_ids = filters.provider_ids
+
+    new_ids =
+      if MapSet.member?(provider_ids, id) do
+        MapSet.delete(provider_ids, id)
+      else
+        MapSet.put(provider_ids, id)
+      end
+
+    filters = Filters.set_providers(filters, new_ids)
+    {:noreply, apply_filters(socket, filters, push_url: true)}
+  end
+
+  @impl true
+  def handle_event("remove_provider", %{"id" => id}, socket) do
+    filters = socket.assigns.filters
+    new_ids = MapSet.delete(filters.provider_ids, id)
+    filters = Filters.set_providers(filters, new_ids)
+    {:noreply, apply_filters(socket, filters, push_url: true)}
+  end
+
+  @impl true
+  def handle_event("provider_search", %{"provider_search" => term}, socket) do
+    filters = Filters.set_provider_search(socket.assigns.filters, term)
+    {:noreply, apply_filters(socket, filters)}
+  end
+
+  @impl true
+  def handle_event("remove_filter", %{"kind" => kind} = params, socket) do
+    filters = socket.assigns.filters
+
+    filters =
+      case kind do
+        "provider" ->
+          id = params["filter_value"]
+          Filters.set_providers(filters, MapSet.delete(filters.provider_ids, id))
+
+        "capability" ->
+          if params["filter_value"] && params["filter_value"] != "" do
+            cap = String.to_existing_atom(params["filter_value"])
+            %{filters | capabilities: Map.put(filters.capabilities, cap, false)}
+          else
+            filters
+          end
+
+        "modality_in" ->
+          mod = String.to_existing_atom(params["filter_value"])
+          Filters.toggle_modality_in(filters, mod)
+
+        "modality_out" ->
+          mod = String.to_existing_atom(params["filter_value"])
+          Filters.toggle_modality_out(filters, mod)
+
+        "min_context" ->
+          Filters.set_context_min(filters, nil)
+
+        "min_output" ->
+          Filters.set_output_min(filters, nil)
+
+        "max_cost_in" ->
+          Filters.set_cost_max(filters, :input, nil)
+
+        "max_cost_out" ->
+          Filters.set_cost_max(filters, :output, nil)
+
+        "show_deprecated" ->
+          %{filters | show_deprecated: false}
+
+        "allowed_only" ->
+          %{filters | allowed_only: true}
+
+        _ ->
+          filters
+      end
+
     {:noreply, apply_filters(socket, filters, push_url: true)}
   end
 
@@ -276,7 +357,14 @@ defmodule PetalBoilerplateWeb.ModelLive do
 
     if Keyword.get(opts, :push_url, false) do
       url_params = Filters.to_params(filters)
-      push_patch(socket, to: ~p"/?#{url_params}", replace: true)
+
+      query_string =
+        url_params
+        |> Enum.map(fn {k, v} -> URI.encode(to_string(k)) <> "=" <> URI.encode(to_string(v)) end)
+        |> Enum.join("&")
+
+      url = if query_string == "", do: "/", else: "/?" <> query_string
+      push_patch(socket, to: url, replace: true)
     else
       socket
     end

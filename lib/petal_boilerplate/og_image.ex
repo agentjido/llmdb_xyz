@@ -401,8 +401,6 @@ defmodule PetalBoilerplate.OGImage do
     """
   end
 
-  defp badge_row_svg([], _x, _y), do: ""
-
   defp badge_row_svg(labels, start_x, y) do
     {svg, _} =
       labels

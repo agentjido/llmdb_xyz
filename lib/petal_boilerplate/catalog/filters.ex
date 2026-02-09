@@ -362,10 +362,12 @@ defmodule PetalBoilerplate.Catalog.Filters do
   end
 
   defp do_apply_quick_filter(f, %{filter_type: :provider, target: provider_id}) do
-    if MapSet.member?(f.provider_ids, provider_id) do
-      %{f | provider_ids: MapSet.delete(f.provider_ids, provider_id)}
+    provider_str = to_string(provider_id)
+
+    if MapSet.member?(f.provider_ids, provider_str) do
+      %{f | provider_ids: MapSet.delete(f.provider_ids, provider_str)}
     else
-      %{f | provider_ids: MapSet.put(f.provider_ids, provider_id)}
+      %{f | provider_ids: MapSet.put(f.provider_ids, provider_str)}
     end
   end
 
@@ -414,7 +416,7 @@ defmodule PetalBoilerplate.Catalog.Filters do
   end
 
   defp quick_filter_active?(f, %{filter_type: :provider, target: provider_id}) do
-    MapSet.member?(f.provider_ids, provider_id)
+    MapSet.member?(f.provider_ids, to_string(provider_id))
   end
 
   @doc """
@@ -449,6 +451,7 @@ defmodule PetalBoilerplate.Catalog.Filters do
   defp parse_provider_ids(str) when is_binary(str) do
     str
     |> String.split(",", trim: true)
+    |> Enum.map(&String.trim/1)
     |> MapSet.new()
   end
 

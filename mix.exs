@@ -9,7 +9,8 @@ defmodule PetalBoilerplate.MixProject do
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
-      deps: deps()
+      deps: deps(),
+      listeners: [Phoenix.CodeReloader]
     ]
   end
 
@@ -32,33 +33,48 @@ defmodule PetalBoilerplate.MixProject do
   # Type `mix help deps` for examples and options.
   defp deps do
     [
-      {:phoenix, "~> 1.7.17"},
+      # Phoenix core
+      {:phoenix, "~> 1.8.3"},
       {:phoenix_html, "~> 4.1"},
-      {:phoenix_live_reload, "~> 1.6", only: [:dev, :test]},
-      {:phoenix_live_view, "~> 1.0.4"},
+      {:phoenix_live_view, "~> 1.1"},
+      {:phoenix_live_dashboard, "~> 0.8.3"},
+      {:plug_cowboy, "~> 2.5"},
+      {:plug_canonical_host, "~> 2.0"},
+
+      # UI
+      {:petal_components, "~> 3.0"},
       {:heroicons,
        github: "tailwindlabs/heroicons",
        tag: "v2.1.5",
        app: false,
        compile: false,
        sparse: "optimized"},
-      {:floki, "~> 0.35", only: [:dev, :test]},
-      {:phoenix_live_dashboard, "~> 0.8.3"},
-      {:esbuild, "~> 0.8", runtime: Mix.env() == :dev},
+      {:image, "~> 0.54"},
+
+      # Assets
+      {:esbuild, "~> 0.9", runtime: Mix.env() == :dev},
       {:tailwind, "~> 0.3", runtime: Mix.env() == :dev},
-      {:swoosh, "~> 1.5"},
+
+      # HTTP & email
       {:finch, "~> 0.13"},
+      {:swoosh, "~> 1.5"},
+
+      # Telemetry
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},
+
+      # Utilities
       {:gettext, "~> 0.20"},
       {:jason, "~> 1.2"},
-      {:plug_cowboy, "~> 2.5"},
-      {:petal_components, "~> 3.0"},
-      {:plug_canonical_host, "~> 2.0"},
-      {:rename_project, "~> 0.1.0", only: :dev},
+
+      # Domain
       {:llm_db, "~> 2026.0"},
+
+      # Dev & test
+      {:phoenix_live_reload, "~> 1.6", only: [:dev, :test]},
+      {:floki, "~> 0.35", only: [:dev, :test]},
       {:tidewave, "~> 0.5.1", only: [:dev, :test]},
-      {:image, "~> 0.54"}
+      {:rename_project, "~> 0.1.0", only: :dev}
     ]
   end
 
