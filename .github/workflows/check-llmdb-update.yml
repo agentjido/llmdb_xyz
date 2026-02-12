@@ -75,3 +75,11 @@ jobs:
           git add mix.lock
           git commit -m "mix: update llm_db to ${{ steps.latest.outputs.version }}"
           git push
+
+      - name: Deploy to Fly PROD
+        if: steps.compare.outputs.already_latest == 'false'
+        uses: superfly/flyctl-actions@master
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        with:
+          args: "deploy -c build/llmdb-prod.toml -a llmdb-prod --remote-only"
