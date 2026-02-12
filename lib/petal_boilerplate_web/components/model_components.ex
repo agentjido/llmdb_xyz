@@ -52,8 +52,10 @@ defmodule PetalBoilerplateWeb.ModelComponents do
             <input
               type="text"
               name="search"
+              id="search-input"
               value={@search_value}
               placeholder="Search..."
+              autofocus
               class="w-full pl-9 h-9 rounded-md border-0 text-sm"
               style="background-color: hsl(var(--secondary)); color: hsl(var(--foreground));"
             />
@@ -1106,21 +1108,25 @@ defmodule PetalBoilerplateWeb.ModelComponents do
 
           <h2 class="text-2xl font-semibold mb-2">{@model.name}</h2>
 
-          <div class="flex items-center gap-2 mb-4">
-            <code
-              class="text-sm px-2 py-1 rounded font-mono"
-              style="background-color: hsl(var(--muted));"
-            >
-              {@model.model_id}
-            </code>
-            <button
-              type="button"
-              onclick={"navigator.clipboard.writeText('#{@model.model_id}'); this.querySelector('.copy-icon').classList.add('hidden'); this.querySelector('.check-icon').classList.remove('hidden'); setTimeout(() => { this.querySelector('.copy-icon').classList.remove('hidden'); this.querySelector('.check-icon').classList.add('hidden'); }, 2000);"}
-              class="p-1 rounded hover:opacity-80"
-            >
-              <.icon name="hero-clipboard" class="h-3 w-3 copy-icon" />
-              <.icon name="hero-check" class="h-3 w-3 check-icon hidden" />
-            </button>
+          <div class="mb-4">
+            <div class="text-xs mb-1" style="color: hsl(var(--muted-foreground));">Model Spec</div>
+            <div class="flex items-center gap-2">
+              <code
+                class="text-sm px-2 py-1 rounded font-mono"
+                style="background-color: hsl(var(--muted));"
+              >
+                {@model.provider}:{@model.model_id}
+              </code>
+              <button
+                type="button"
+                onclick={"navigator.clipboard.writeText('#{@model.provider}:#{@model.model_id}'); this.querySelector('.spec-copy-icon').classList.add('hidden'); this.querySelector('.spec-check-icon').classList.remove('hidden'); setTimeout(() => { this.querySelector('.spec-copy-icon').classList.remove('hidden'); this.querySelector('.spec-check-icon').classList.add('hidden'); }, 2000);"}
+                class="p-1 rounded hover:opacity-80"
+                title="Copy model spec"
+              >
+                <.icon name="hero-clipboard" class="h-3 w-3 spec-copy-icon" />
+                <.icon name="hero-check" class="h-3 w-3 spec-check-icon hidden" />
+              </button>
+            </div>
           </div>
 
           <%= if has_modalities?(@model) do %>
