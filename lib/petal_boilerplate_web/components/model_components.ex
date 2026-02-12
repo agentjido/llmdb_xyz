@@ -237,6 +237,7 @@ defmodule PetalBoilerplateWeb.ModelComponents do
             />
 
             <.filter_dropdown
+              id="filter-provider"
               label={"Provider #{provider_count_label(@filters)}"}
               active={MapSet.size(@filters.provider_ids) > 0}
             >
@@ -244,6 +245,7 @@ defmodule PetalBoilerplateWeb.ModelComponents do
             </.filter_dropdown>
 
             <.filter_dropdown
+              id="filter-capabilities"
               label="Capabilities"
               active={has_capability_filters?(@filters.capabilities)}
             >
@@ -251,6 +253,7 @@ defmodule PetalBoilerplateWeb.ModelComponents do
             </.filter_dropdown>
 
             <.filter_dropdown
+              id="filter-context"
               label={"Context #{context_label(@filters)}"}
               active={@filters.min_context != nil}
             >
@@ -258,6 +261,7 @@ defmodule PetalBoilerplateWeb.ModelComponents do
             </.filter_dropdown>
 
             <.filter_dropdown
+              id="filter-cost"
               label={"Cost #{cost_label(@filters)}"}
               active={@filters.max_cost_in != nil or @filters.max_cost_out != nil}
             >
@@ -338,15 +342,17 @@ defmodule PetalBoilerplateWeb.ModelComponents do
     """
   end
 
+  attr :id, :string, required: true
   attr :label, :string, required: true
   attr :active, :boolean, default: false
   slot :inner_block, required: true
 
   defp filter_dropdown(assigns) do
     ~H"""
-    <div class="relative group">
+    <div class="relative">
       <button
         type="button"
+        phx-click={JS.toggle(to: "##{@id}-panel")}
         class="h-8 px-3 text-sm rounded-md border flex items-center gap-1 transition-colors hover:opacity-80"
         style={
           if @active,
@@ -367,7 +373,9 @@ defmodule PetalBoilerplateWeb.ModelComponents do
         />
       </button>
       <div
-        class="absolute left-0 top-full mt-1 hidden group-focus-within:block hover:block rounded-md border shadow-lg z-50"
+        id={"#{@id}-panel"}
+        phx-click-away={JS.hide(to: "##{@id}-panel")}
+        class="absolute left-0 top-full mt-1 hidden rounded-md border shadow-lg z-50"
         style="border-color: hsl(var(--border)); background-color: hsl(var(--popover)); color: hsl(var(--popover-foreground));"
       >
         {render_slot(@inner_block)}
