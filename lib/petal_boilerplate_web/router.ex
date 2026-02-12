@@ -18,7 +18,7 @@ defmodule PetalBoilerplateWeb.Router do
     pipe_through :browser
 
     live "/", ModelLive, :index
-    live "/models/:provider/:id", ModelLive, :show
+    live "/models/:provider/*id", ModelLive, :show
     live "/about", AboutLive, :index
 
     # OG image endpoints (PNG images for social sharing)

@@ -9,7 +9,14 @@ defmodule PetalBoilerplateWeb.ModelLive do
     {:noreply, apply_action(socket, socket.assigns.live_action, params)}
   end
 
-  defp apply_action(socket, :show, %{"provider" => provider, "id" => id}) do
+  defp apply_action(socket, :show, %{"provider" => provider, "id" => id_parts}) do
+    # *id catch-all gives us a list of path segments — join them back with "/"
+    id =
+      case id_parts do
+        parts when is_list(parts) -> Enum.join(parts, "/")
+        str when is_binary(str) -> str
+      end
+
     model =
       if socket.assigns.all_models == [] do
         Catalog.find_model(provider, id)
@@ -165,7 +172,8 @@ defmodule PetalBoilerplateWeb.ModelLive do
     model = Enum.find(socket.assigns.filtered_models, fn m -> m.id == model_id end)
 
     if model do
-      {:noreply, push_patch(socket, to: ~p"/models/#{model.provider}/#{model.model_id}")}
+      path = "/models/#{URI.encode(to_string(model.provider))}/#{model.model_id}"
+      {:noreply, push_patch(socket, to: path)}
     else
       {:noreply, socket}
     end
@@ -173,7 +181,15 @@ defmodule PetalBoilerplateWeb.ModelLive do
 
   @impl true
   def handle_event("close_model", _params, socket) do
-    {:noreply, push_patch(socket, to: ~p"/")}
+    url_params = Filters.to_params(socket.assigns.filters)
+
+    query_string =
+      url_params
+      |> Enum.map(fn {k, v} -> URI.encode(to_string(k)) <> "=" <> URI.encode(to_string(v)) end)
+      |> Enum.join("&")
+
+    url = if query_string == "", do: "/", else: "/?" <> query_string
+    {:noreply, push_patch(socket, to: url)}
   end
 
   @impl true
