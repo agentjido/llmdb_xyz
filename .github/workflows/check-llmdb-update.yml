@@ -8,7 +8,6 @@ on:
 
 permissions:
   contents: write
-  pull-requests: write
 
 jobs:
   check-update:
@@ -61,47 +60,18 @@ jobs:
             echo "New version available: ${{ steps.latest.outputs.version }} (current: ${{ steps.current.outputs.version }})"
           fi
 
-      - name: Check for existing PR
-        if: steps.compare.outputs.already_latest == 'false'
-        id: existing_pr
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          branch="auto/update-llm-db-${{ steps.latest.outputs.version }}"
-          pr_count=$(gh pr list --head "$branch" --state open --json number --jq 'length')
-          if [ "$pr_count" -gt 0 ]; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-            echo "PR already exists for this version."
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Update llm_db dependency
-        if: steps.compare.outputs.already_latest == 'false' && steps.existing_pr.outputs.exists == 'false'
+        if: steps.compare.outputs.already_latest == 'false'
         run: |
           mix local.hex --force
           mix local.rebar --force
           mix deps.update llm_db
 
-      - name: Create Pull Request
-        if: steps.compare.outputs.already_latest == 'false' && steps.existing_pr.outputs.exists == 'false'
-        uses: peter-evans/create-pull-request@v7
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          branch: auto/update-llm-db-${{ steps.latest.outputs.version }}
-          commit-message: "mix: update llm_db to ${{ steps.latest.outputs.version }}"
-          title: "Update llm_db to ${{ steps.latest.outputs.version }}"
-          body: |
-            Automated update of `llm_db` dependency.
-
-            **Current version:** ${{ steps.current.outputs.version }}
-            **New version:** ${{ steps.latest.outputs.version }}
-
-            [Changelog on Hex](https://hex.pm/packages/llm_db/versions)
-
-            ---
-            _This PR was created automatically by the [check-llmdb-update](.github/workflows/check-llmdb-update.yml) workflow._
-          labels: |
-            dependencies
-            elixir
-            automated
+      - name: Commit and push update
+        if: steps.compare.outputs.already_latest == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add mix.lock
+          git commit -m "mix: update llm_db to ${{ steps.latest.outputs.version }}"
+          git push
