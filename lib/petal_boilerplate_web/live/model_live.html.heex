@@ -6,7 +6,13 @@
     active_quick_filters={@active_quick_filters}
   />
 
-  <PetalBoilerplateWeb.ModelComponents.model_detail_modal model={@selected_model} />
+  <PetalBoilerplateWeb.ModelComponents.model_detail_modal
+    model={@selected_model}
+    history_events={@history_events}
+    history_meta={@history_meta}
+    history_available={@history_available}
+    history_api_url={@history_api_url}
+  />
   <PetalBoilerplateWeb.ModelComponents.comparison_modal
     is_open={@comparison_open}
     models={selected_models(assigns)}

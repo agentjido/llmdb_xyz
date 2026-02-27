@@ -32,6 +32,8 @@ defmodule PetalBoilerplateWeb.Router do
   scope "/api", PetalBoilerplateWeb do
     pipe_through :api
 
+    get "/history/recent", HistoryController, :recent
+    get "/history/:provider/*id", HistoryController, :model
     post "/mcp", MCPController, :handle
   end
 

@@ -23,7 +23,7 @@ Add it to your project:
 ```elixir
 def deps do
   [
-    {:llm_db, "~> 2025.12.1"}
+    {:llm_db, git: "https://github.com/agentjido/llm_db.git", branch: "main"}
   ]
 end
 ```

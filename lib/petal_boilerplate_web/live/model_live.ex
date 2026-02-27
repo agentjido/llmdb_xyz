@@ -24,9 +24,18 @@ defmodule PetalBoilerplateWeb.ModelLive do
         find_model_by_provider_and_id(socket.assigns.all_models, provider, id)
       end
 
+    {history_events, history_meta, history_available} = load_history(model, provider, id)
+    history_api_url = if model, do: build_history_api_url(provider, id), else: nil
+
     socket
     |> assign_og_meta(:show, model)
-    |> assign(selected_model: model)
+    |> assign(
+      selected_model: model,
+      history_events: history_events,
+      history_meta: history_meta,
+      history_available: history_available,
+      history_api_url: history_api_url
+    )
   end
 
   defp apply_action(socket, :index, params) do
@@ -35,9 +44,12 @@ defmodule PetalBoilerplateWeb.ModelLive do
 
       socket
       |> assign(selected_model: nil)
+      |> clear_history_assigns()
       |> apply_filters(filters)
     else
-      assign(socket, selected_model: nil)
+      socket
+      |> assign(selected_model: nil)
+      |> clear_history_assigns()
     end
   end
 
@@ -86,6 +98,10 @@ defmodule PetalBoilerplateWeb.ModelLive do
          active_filter_count: Filters.active_filter_count(default_filters),
          active_quick_filters: Filters.active_quick_filters(default_filters),
          selected_model: nil,
+         history_events: [],
+         history_meta: %{},
+         history_available: false,
+         history_api_url: nil,
          selected_ids: MapSet.new(),
          comparison_open: false
        )
@@ -108,6 +124,10 @@ defmodule PetalBoilerplateWeb.ModelLive do
          active_filter_count: 0,
          active_quick_filters: [],
          selected_model: nil,
+         history_events: [],
+         history_meta: %{},
+         history_available: false,
+         history_api_url: nil,
          selected_ids: MapSet.new(),
          comparison_open: false
        )
@@ -389,6 +409,44 @@ defmodule PetalBoilerplateWeb.ModelLive do
   defp selected_models(assigns) do
     ids = MapSet.to_list(assigns.selected_ids)
     Enum.filter(assigns.all_models, &(&1.id in ids))
+  end
+
+  defp clear_history_assigns(socket) do
+    assign(socket,
+      history_events: [],
+      history_meta: %{},
+      history_available: false,
+      history_api_url: nil
+    )
+  end
+
+  defp load_history(nil, _provider, _model_id), do: {[], %{}, false}
+
+  defp load_history(_model, provider, model_id) do
+    history = history_module()
+
+    with {:ok, events} <- history.timeline(provider, model_id, 200),
+         {:ok, meta} <- history.meta() do
+      {events, meta, true}
+    else
+      _ -> {[], %{}, false}
+    end
+  end
+
+  defp build_history_api_url(provider, model_id) do
+    encoded_provider = URI.encode(provider)
+
+    encoded_model_id =
+      model_id
+      |> String.split("/")
+      |> Enum.map(&URI.encode/1)
+      |> Enum.join("/")
+
+    "/api/history/#{encoded_provider}/#{encoded_model_id}?limit=200"
+  end
+
+  defp history_module do
+    Application.get_env(:petal_boilerplate, :history_module, PetalBoilerplate.History)
   end
 
   defp parse_int_value(""), do: nil

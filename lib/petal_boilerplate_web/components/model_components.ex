@@ -1080,6 +1080,10 @@ defmodule PetalBoilerplateWeb.ModelComponents do
   # =============================================================================
 
   attr :model, :map, default: nil
+  attr :history_events, :list, default: []
+  attr :history_meta, :map, default: %{}
+  attr :history_available, :boolean, default: false
+  attr :history_api_url, :string, default: nil
 
   def model_detail_modal(assigns) do
     ~H"""
@@ -1179,7 +1183,10 @@ defmodule PetalBoilerplateWeb.ModelComponents do
             </div>
           <% end %>
 
-          <div class="mb-6">
+          <div
+            :if={not hide_history_section?(@history_available, @history_events)}
+            class="mb-6"
+          >
             <h3 class="text-sm font-semibold mb-3">Capabilities</h3>
             <div class="flex flex-wrap gap-2">
               <.capability_badge :if={@model.capabilities[:chat]} capability={:chat} />
@@ -1254,6 +1261,115 @@ defmodule PetalBoilerplateWeb.ModelComponents do
                   {ModelLive.format_cost(get_in(@model.cost, [:output]))}/M
                 </div>
               </div>
+            </div>
+          </div>
+
+          <div class="mb-6">
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="text-sm font-semibold">History</h3>
+              <a
+                :if={@history_api_url}
+                href={@history_api_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="text-xs px-2 py-1 rounded border transition-colors hover:opacity-80"
+                style="border-color: hsl(var(--border)); color: hsl(var(--muted-foreground));"
+              >
+                Raw JSON
+              </a>
+            </div>
+            <p class="mb-3 text-xs" style="color: hsl(var(--muted-foreground));">
+              Timeline is based on collected llm_db history snapshots and may be incomplete.
+            </p>
+
+            <%= if @history_available do %>
+              <%= if @history_events == [] do %>
+                <div
+                  class="rounded-lg border p-3 text-sm"
+                  style="border-color: hsl(var(--border)); background-color: hsl(var(--muted) / 0.3); color: hsl(var(--muted-foreground));"
+                >
+                  No history events available yet.
+                </div>
+              <% else %>
+                <div class="max-h-[46vh] overflow-y-auto overscroll-contain space-y-2 pr-1">
+                  <%= for event <- Enum.reverse(@history_events) do %>
+                    <div
+                      class="rounded-lg border p-3"
+                      style="border-color: hsl(var(--border)); background-color: hsl(var(--muted) / 0.3);"
+                    >
+                      <div class="flex items-center justify-between gap-3 mb-2">
+                        <span class="text-xs font-mono" style="color: hsl(var(--muted-foreground));">
+                          {history_event_date(event)}
+                        </span>
+                        <span
+                          class="text-[10px] px-2 py-0.5 rounded border"
+                          style={history_event_type_style(event)}
+                        >
+                          {history_event_type(event)}
+                        </span>
+                      </div>
+                      <div class="space-y-2">
+                        <%= case history_change_rows(event, 3) do %>
+                          <% [] -> %>
+                            <span
+                              :if={history_event_type(event) != "introduced"}
+                              class="text-xs"
+                              style="color: hsl(var(--muted-foreground));"
+                            >
+                              No field-level changes recorded
+                            </span>
+                          <% rows -> %>
+                            <ul class="space-y-1.5">
+                              <%= for row <- rows do %>
+                                <li class="text-xs leading-relaxed">
+                                  <span class="font-mono text-[11px] break-all">{row.path}</span>
+                                  <span
+                                    class="ml-1 text-[10px]"
+                                    style="color: hsl(var(--muted-foreground));"
+                                  >
+                                    ({String.downcase(row.op)})
+                                  </span>
+                                  <div
+                                    class="mt-0.5 break-words"
+                                    style="color: hsl(var(--muted-foreground));"
+                                  >
+                                    <span class="text-[11px]">{row.before}</span>
+                                    <span class="mx-1">→</span>
+                                    <span class="text-[11px]" style="color: hsl(var(--foreground));">
+                                      {row.after}
+                                    </span>
+                                  </div>
+                                </li>
+                              <% end %>
+                            </ul>
+                            <span
+                              :if={history_change_overflow(event, 3) > 0}
+                              class="text-[11px]"
+                              style="color: hsl(var(--muted-foreground));"
+                            >
+                              +{history_change_overflow(event, 3)} more
+                            </span>
+                        <% end %>
+                      </div>
+                    </div>
+                  <% end %>
+                </div>
+              <% end %>
+            <% else %>
+              <div
+                class="rounded-lg border p-3 text-sm"
+                style="border-color: hsl(var(--border)); background-color: hsl(var(--muted) / 0.3); color: hsl(var(--muted-foreground));"
+              >
+                History not available for this deployment.
+              </div>
+            <% end %>
+
+            <div
+              :if={map_size(@history_meta) > 0}
+              class="mt-2 text-[11px]"
+              style="color: hsl(var(--muted-foreground));"
+            >
+              {history_meta_summary(@history_meta)}
             </div>
           </div>
 
@@ -1547,6 +1663,150 @@ defmodule PetalBoilerplateWeb.ModelComponents do
     do: get_in(model.capabilities, [:json, :native])
 
   defp model_has_capability?(_, _), do: false
+
+  defp history_event_date(event) do
+    event
+    |> map_get("captured_at", :captured_at, "unknown")
+    |> to_string()
+    |> String.slice(0, 10)
+  end
+
+  defp history_event_type(event) do
+    event
+    |> map_get("type", :type, "changed")
+    |> to_string()
+  end
+
+  defp hide_history_section?(true, [event]) do
+    history_event_type(event) == "introduced"
+  end
+
+  defp hide_history_section?(_available, _events), do: false
+
+  defp history_event_type_style(event) do
+    case history_event_type(event) do
+      "introduced" ->
+        "border-color: hsl(var(--cap-chat) / 0.4); color: hsl(var(--cap-chat)); background-color: hsl(var(--cap-chat) / 0.15);"
+
+      "removed" ->
+        "border-color: hsl(var(--cap-reason) / 0.4); color: hsl(var(--cap-reason)); background-color: hsl(var(--cap-reason) / 0.15);"
+
+      _ ->
+        "border-color: hsl(var(--cap-stream) / 0.4); color: hsl(var(--cap-stream)); background-color: hsl(var(--cap-stream) / 0.15);"
+    end
+  end
+
+  defp history_change_rows(event, max_items) do
+    event
+    |> map_get("changes", :changes, [])
+    |> Enum.map(&history_change_row/1)
+    |> Enum.filter(fn row -> row.path != "" end)
+    |> Enum.take(max_items)
+  end
+
+  defp history_change_overflow(event, max_items) do
+    total_changes =
+      event
+      |> map_get("changes", :changes, [])
+      |> length()
+
+    max(total_changes - max_items, 0)
+  end
+
+  defp history_change_row(change) do
+    %{
+      path:
+        change
+        |> map_get("path", :path, "")
+        |> to_string(),
+      op:
+        change
+        |> map_get("op", :op, "replace")
+        |> to_string(),
+      before:
+        change
+        |> map_get("before", :before, nil)
+        |> history_format_value(),
+      after:
+        change
+        |> map_get("after", :after, nil)
+        |> history_format_value()
+    }
+  end
+
+  defp history_format_value(nil), do: "—"
+
+  defp history_format_value(value) when is_binary(value) do
+    value
+    |> String.replace(~r/\s+/, " ")
+    |> String.trim()
+    |> truncate_history_value(80)
+  end
+
+  defp history_format_value(value) when is_boolean(value) or is_number(value) do
+    to_string(value)
+  end
+
+  defp history_format_value(value) when is_list(value) do
+    "[#{length(value)} items]"
+  end
+
+  defp history_format_value(value) when is_map(value) do
+    "{#{map_size(value)} fields}"
+  end
+
+  defp history_format_value(value) do
+    value
+    |> inspect()
+    |> truncate_history_value(80)
+  end
+
+  defp truncate_history_value(value, max_len) when is_binary(value) and is_integer(max_len) do
+    if String.length(value) > max_len do
+      String.slice(value, 0, max_len - 3) <> "..."
+    else
+      value
+    end
+  end
+
+  defp history_meta_summary(meta) do
+    from_commit = map_get(meta, "from_commit", :from_commit)
+    to_commit = map_get(meta, "to_commit", :to_commit)
+    generated_at = map_get(meta, "generated_at", :generated_at)
+
+    commit_summary =
+      cond do
+        is_binary(from_commit) and is_binary(to_commit) ->
+          "commits #{short_sha(from_commit)} -> #{short_sha(to_commit)}"
+
+        true ->
+          nil
+      end
+
+    generated_summary =
+      if is_binary(generated_at) do
+        "generated #{String.slice(generated_at, 0, 19)}"
+      end
+
+    [commit_summary, generated_summary]
+    |> Enum.reject(&is_nil/1)
+    |> Enum.join(" • ")
+  end
+
+  defp short_sha(sha) when is_binary(sha), do: String.slice(sha, 0, 7)
+  defp short_sha(_), do: "unknown"
+
+  defp map_get(map, string_key, atom_key, default \\ nil)
+
+  defp map_get(map, string_key, atom_key, default) when is_map(map) do
+    cond do
+      Map.has_key?(map, string_key) -> Map.get(map, string_key)
+      Map.has_key?(map, atom_key) -> Map.get(map, atom_key)
+      true -> default
+    end
+  end
+
+  defp map_get(_value, _string_key, _atom_key, default), do: default
 
   # =============================================================================
   # Legacy Components (kept for backwards compatibility)
