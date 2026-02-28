@@ -22,6 +22,10 @@ defmodule PetalBoilerplateWeb.OGImageController do
     serve_image(conn, OGImage.get_image(:about))
   end
 
+  def compare_subs(conn, _params) do
+    serve_image(conn, OGImage.get_image(:compare_subs))
+  end
+
   def model(conn, %{"provider" => provider, "id" => id_parts}) do
     id = id_parts |> List.wrap() |> Enum.join("/") |> String.trim_trailing(".png")
     serve_image(conn, OGImage.get_image({:model, provider, id}))
