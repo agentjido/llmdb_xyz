@@ -20,11 +20,13 @@ defmodule PetalBoilerplateWeb.Router do
     live "/", ModelLive, :index
     live "/models/:provider/*id", ModelLive, :show
     live "/about", AboutLive, :index
+    live "/compare-subs", SubscriptionValueLive, :index
 
     # OG image endpoints (PNG images for social sharing)
     get "/og/default.png", OGImageController, :default
     get "/og/home.png", OGImageController, :home
     get "/og/about.png", OGImageController, :about
+    get "/og/compare-subs.png", OGImageController, :compare_subs
     get "/og/model/:provider/*id", OGImageController, :model
   end
 

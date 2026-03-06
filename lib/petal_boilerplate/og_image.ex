@@ -37,6 +37,10 @@ defmodule PetalBoilerplate.OGImage do
     get_cached_or_generate("about", fn -> generate_about_image() end)
   end
 
+  def get_image(:compare_subs) do
+    get_cached_or_generate("compare-subs", fn -> generate_compare_subs_image() end)
+  end
+
   def get_image({:model, provider, model_id}) do
     cache_key = "model:#{provider}:#{model_id}"
 
@@ -103,6 +107,11 @@ defmodule PetalBoilerplate.OGImage do
 
   defp generate_about_image do
     svg = about_svg()
+    render_svg_to_png(svg)
+  end
+
+  defp generate_compare_subs_image do
+    svg = compare_subs_svg()
     render_svg_to_png(svg)
   end
 
@@ -237,6 +246,41 @@ defmodule PetalBoilerplate.OGImage do
       <line x1="64" y1="#{@image_height - 80}" x2="#{@image_width - 64}" y2="#{@image_height - 80}" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
       <text x="64" y="#{@image_height - 40}" fill="#64748b" font-size="20" font-family="system-ui, -apple-system, sans-serif">
         llmdb.xyz/about
+      </text>
+    </svg>
+    """
+  end
+
+  defp compare_subs_svg do
+    """
+    <svg xmlns="http://www.w3.org/2000/svg" width="#{@image_width}" height="#{@image_height}" viewBox="0 0 #{@image_width} #{@image_height}">
+      <defs>
+        <linearGradient id="bggrad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#1a1a2e"/>
+          <stop offset="50%" stop-color="#16213e"/>
+          <stop offset="100%" stop-color="#0f3460"/>
+        </linearGradient>
+      </defs>
+      <rect width="#{@image_width}" height="#{@image_height}" fill="url(#bggrad)"/>
+
+      <text x="64" y="88" fill="#60a5fa" font-size="30" font-family="system-ui, -apple-system, sans-serif" font-weight="600">
+        llmdb.xyz
+      </text>
+
+      <text x="64" y="212" fill="#ffffff" font-size="68" font-family="system-ui, -apple-system, sans-serif" font-weight="700">
+        Subscription Value
+      </text>
+
+      <text x="64" y="276" fill="#cbd5e1" font-size="30" font-family="system-ui, -apple-system, sans-serif">
+        Compare coding subscriptions with confidence bands
+      </text>
+
+      #{badge_row_svg(["No signup", "No email", "Transparent assumptions"], 64, 350)}
+      #{badge_row_svg(["OpenAI", "Anthropic", "Cursor", "Copilot", "Windsurf", "+ more"], 64, 412)}
+
+      <line x1="64" y1="#{@image_height - 84}" x2="#{@image_width - 64}" y2="#{@image_height - 84}" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+      <text x="64" y="#{@image_height - 42}" fill="#94a3b8" font-size="22" font-family="system-ui, -apple-system, sans-serif">
+        llmdb.xyz/compare-subs
       </text>
     </svg>
     """

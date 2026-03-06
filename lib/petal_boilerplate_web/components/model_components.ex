@@ -81,6 +81,14 @@ defmodule PetalBoilerplateWeb.ModelComponents do
           About
         </a>
 
+        <a
+          href="/compare-subs"
+          class="text-sm hidden sm:block transition-colors hover:opacity-80"
+          style="color: hsl(var(--muted-foreground));"
+        >
+          Compare Subs
+        </a>
+
         <div class="flex items-center gap-0.5 shrink-0">
           <a
             href="https://agentjido.xyz/discord"

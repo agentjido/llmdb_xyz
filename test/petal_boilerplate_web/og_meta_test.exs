@@ -22,6 +22,16 @@ defmodule PetalBoilerplateWeb.OgMetaTest do
       assert html =~ ~s(property="og:url" content="https://llmdb.xyz/about")
     end
 
+    test "compare-subs page has correct OG tags", %{conn: conn} do
+      conn = get(conn, ~p"/compare-subs")
+      html = html_response(conn, 200)
+
+      assert html =~ ~s(property="og:title" content="Subscription Value Calculator")
+      assert html =~ ~s(property="og:description" content="Compare coding subscription value)
+      assert html =~ ~s(property="og:url" content="https://llmdb.xyz/compare-subs")
+      assert html =~ ~s(property="og:image" content="https://llmdb.xyz/og/compare-subs.png")
+    end
+
     test "model detail page has correct OG tags", %{conn: conn} do
       conn = get(conn, ~p"/models/openai/gpt-4o")
       html = html_response(conn, 200)

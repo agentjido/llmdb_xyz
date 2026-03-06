@@ -3,6 +3,8 @@ defmodule PetalBoilerplateWeb.PageControllerTest do
 
   test "GET /", %{conn: conn} do
     conn = get(conn, ~p"/")
-    assert html_response(conn, 200) =~ "<main>"
+    html = html_response(conn, 200)
+    assert html =~ "<main>"
+    assert html =~ ~s(href="/compare-subs")
   end
 end
