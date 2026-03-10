@@ -39,13 +39,14 @@ defmodule PetalBoilerplateWeb.ModelLive do
   end
 
   defp apply_action(socket, :index, params) do
-    if connected?(socket) and socket.assigns.all_models != [] do
+    if socket.assigns.all_models != [] do
       filters = Filters.from_params(params)
+      sort = sort_from_params(params)
 
       socket
       |> assign(selected_model: nil)
       |> clear_history_assigns()
-      |> apply_filters(filters)
+      |> apply_filters(filters, sort: sort)
     else
       socket
       |> assign(selected_model: nil)
@@ -67,72 +68,44 @@ defmodule PetalBoilerplateWeb.ModelLive do
     "context" => :context,
     "output" => :output,
     "cost_in" => :cost_in,
-    "cost_out" => :cost_out
+    "cost_out" => :cost_out,
+    "recently_changed" => :recently_changed
   }
 
   @impl true
-  def mount(_params, _session, socket) do
-    default_filters = Filters.new()
-    sort = Catalog.default_sort()
+  def mount(params, _session, socket) do
+    filters = Filters.from_params(params)
+    sort = sort_from_params(params)
+    providers = Catalog.list_providers()
+    all_models = Catalog.list_all_models()
+    filtered = Catalog.list_models(all_models, filters, sort)
+    {page_models, total, total_pages, page} = Catalog.paginate(filtered, 1)
 
-    if connected?(socket) do
-      providers = Catalog.list_providers()
-      all_models = Catalog.list_all_models()
-      filtered = Catalog.list_models(all_models, default_filters, sort)
-      {page_models, total, total_pages, page} = Catalog.paginate(filtered, 1)
-
-      {:ok,
-       socket
-       |> assign_og_meta(:index, nil)
-       |> assign(
-         providers: providers,
-         all_models: all_models,
-         filtered_models: filtered,
-         filters: default_filters,
-         sort: sort,
-         total: total,
-         page: page,
-         total_pages: total_pages,
-         filters_open: false,
-         search_value: default_filters.search,
-         active_filter_count: Filters.active_filter_count(default_filters),
-         active_quick_filters: Filters.active_quick_filters(default_filters),
-         selected_model: nil,
-         history_events: [],
-         history_meta: %{},
-         history_available: false,
-         history_api_url: nil,
-         selected_ids: MapSet.new(),
-         comparison_open: false
-       )
-       |> stream(:models, page_models, reset: true)}
-    else
-      {:ok,
-       socket
-       |> assign_og_meta(:index, nil)
-       |> assign(
-         providers: [],
-         all_models: [],
-         filtered_models: [],
-         filters: default_filters,
-         sort: sort,
-         total: 0,
-         page: 1,
-         total_pages: 1,
-         filters_open: false,
-         search_value: "",
-         active_filter_count: 0,
-         active_quick_filters: [],
-         selected_model: nil,
-         history_events: [],
-         history_meta: %{},
-         history_available: false,
-         history_api_url: nil,
-         selected_ids: MapSet.new(),
-         comparison_open: false
-       )
-       |> stream(:models, [])}
-    end
+    {:ok,
+     socket
+     |> assign_og_meta(:index, nil)
+     |> assign(
+       providers: providers,
+       all_models: all_models,
+       filtered_models: filtered,
+       filters: filters,
+       sort: sort,
+       total: total,
+       page: page,
+       total_pages: total_pages,
+       filters_open: false,
+       search_value: filters.search,
+       active_filter_count: Filters.active_filter_count(filters),
+       active_quick_filters: Filters.active_quick_filters(filters),
+       selected_model: nil,
+       history_events: [],
+       history_meta: %{},
+       history_available: false,
+       history_api_url: nil,
+       selected_ids: MapSet.new(),
+       comparison_open: false
+     )
+     |> stream(:models, page_models, reset: true)}
   end
 
   @impl true
@@ -158,19 +131,7 @@ defmodule PetalBoilerplateWeb.ModelLive do
         %{by: field, dir: :asc}
       end
 
-    filtered = Catalog.list_models(socket.assigns.all_models, socket.assigns.filters, new_sort)
-    {page_models, total, total_pages, page} = Catalog.paginate(filtered, 1)
-
-    {:noreply,
-     socket
-     |> assign(
-       sort: new_sort,
-       filtered_models: filtered,
-       total: total,
-       page: page,
-       total_pages: total_pages
-     )
-     |> stream(:models, page_models, reset: true)}
+    {:noreply, apply_filters(socket, socket.assigns.filters, sort: new_sort, push_url: true)}
   end
 
   @impl true
@@ -201,15 +162,7 @@ defmodule PetalBoilerplateWeb.ModelLive do
 
   @impl true
   def handle_event("close_model", _params, socket) do
-    url_params = Filters.to_params(socket.assigns.filters)
-
-    query_string =
-      url_params
-      |> Enum.map(fn {k, v} -> URI.encode(to_string(k)) <> "=" <> URI.encode(to_string(v)) end)
-      |> Enum.join("&")
-
-    url = if query_string == "", do: "/", else: "/?" <> query_string
-    {:noreply, push_patch(socket, to: url)}
+    {:noreply, push_patch(socket, to: index_path(socket.assigns.filters, socket.assigns.sort))}
   end
 
   @impl true
@@ -331,6 +284,9 @@ defmodule PetalBoilerplateWeb.ModelLive do
           mod = String.to_existing_atom(params["filter_value"])
           Filters.toggle_modality_out(filters, mod)
 
+        "changed_within" ->
+          Filters.set_changed_within(filters, nil)
+
         "min_context" ->
           Filters.set_context_min(filters, nil)
 
@@ -364,23 +320,49 @@ defmodule PetalBoilerplateWeb.ModelLive do
   end
 
   @impl true
+  def handle_event("set_changed_within", %{"changed_within" => value}, socket) do
+    changed_within_days =
+      case parse_int_value(value) do
+        days when is_integer(days) and days > 0 -> days
+        _ -> nil
+      end
+
+    filters = Filters.set_changed_within(socket.assigns.filters, changed_within_days)
+    {:noreply, apply_filters(socket, filters, push_url: true)}
+  end
+
+  @impl true
   def handle_event("set_max_cost", %{"value" => value}, socket) do
     cost_value = parse_float_value(value)
     filters = Filters.set_cost_max(socket.assigns.filters, :input, cost_value)
     {:noreply, apply_filters(socket, filters, push_url: true)}
   end
 
+  @impl true
+  def handle_event("set_sort", %{"sort" => sort_key}, socket) do
+    sort =
+      case sort_key do
+        "recently_changed" -> %{by: :recently_changed, dir: :desc}
+        "default" -> Catalog.default_sort()
+        _ -> socket.assigns.sort
+      end
+
+    {:noreply, apply_filters(socket, socket.assigns.filters, sort: sort, push_url: true)}
+  end
+
   defp toggle_direction(:asc), do: :desc
   defp toggle_direction(:desc), do: :asc
 
   defp apply_filters(socket, %Filters{} = filters, opts \\ []) do
-    filtered = Catalog.list_models(socket.assigns.all_models, filters, socket.assigns.sort)
+    sort = Keyword.get(opts, :sort, socket.assigns.sort)
+    filtered = Catalog.list_models(socket.assigns.all_models, filters, sort)
     {page_models, total, total_pages, page} = Catalog.paginate(filtered, 1)
 
     socket =
       socket
       |> assign(
         filters: filters,
+        sort: sort,
         filtered_models: filtered,
         total: total,
         page: page,
@@ -392,15 +374,7 @@ defmodule PetalBoilerplateWeb.ModelLive do
       |> stream(:models, page_models, reset: true)
 
     if Keyword.get(opts, :push_url, false) do
-      url_params = Filters.to_params(filters)
-
-      query_string =
-        url_params
-        |> Enum.map(fn {k, v} -> URI.encode(to_string(k)) <> "=" <> URI.encode(to_string(v)) end)
-        |> Enum.join("&")
-
-      url = if query_string == "", do: "/", else: "/?" <> query_string
-      push_patch(socket, to: url, replace: true)
+      push_patch(socket, to: index_path(filters, sort), replace: true)
     else
       socket
     end
@@ -447,6 +421,66 @@ defmodule PetalBoilerplateWeb.ModelLive do
 
   defp history_module do
     Application.get_env(:petal_boilerplate, :history_module, PetalBoilerplate.History)
+  end
+
+  defp index_path(filters, sort) do
+    query_params =
+      filters
+      |> Filters.to_params()
+      |> maybe_put_sort(sort)
+
+    query_string =
+      query_params
+      |> Enum.sort_by(fn {key, _value} -> key end)
+      |> Enum.map(fn {key, value} ->
+        URI.encode(to_string(key)) <> "=" <> URI.encode(to_string(value))
+      end)
+      |> Enum.join("&")
+
+    if query_string == "", do: "/", else: "/?" <> query_string
+  end
+
+  defp maybe_put_sort(params, sort) do
+    if sort == Catalog.default_sort() do
+      params
+    else
+      params
+      |> Map.put("sort", sort_param(sort.by))
+      |> Map.put("dir", Atom.to_string(sort.dir))
+    end
+  end
+
+  defp sort_from_params(params) do
+    with sort_key when is_binary(sort_key) <- Map.get(params, "sort"),
+         {:ok, field} <- fetch_sort_field(sort_key) do
+      %{by: field, dir: parse_sort_direction(Map.get(params, "dir"), field)}
+    else
+      _ -> Catalog.default_sort()
+    end
+  end
+
+  defp fetch_sort_field(sort_key) when is_binary(sort_key) do
+    case Map.fetch(@sort_fields, sort_key) do
+      {:ok, field} -> {:ok, field}
+      :error -> :error
+    end
+  end
+
+  defp parse_sort_direction("desc", _field), do: :desc
+  defp parse_sort_direction("asc", _field), do: :asc
+  defp parse_sort_direction(_value, :recently_changed), do: :desc
+  defp parse_sort_direction(_value, _field), do: :asc
+
+  defp sort_param(field) do
+    Enum.find_value(@sort_fields, "provider", fn {param, mapped_field} ->
+      if mapped_field == field, do: param
+    end)
+  end
+
+  defp sort_control_value(%{by: :recently_changed}), do: "recently_changed"
+
+  defp sort_control_value(sort) do
+    if sort == Catalog.default_sort(), do: "default", else: "custom"
   end
 
   defp parse_int_value(""), do: nil

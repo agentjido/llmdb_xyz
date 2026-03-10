@@ -29,7 +29,7 @@ defmodule PetalBoilerplate.History do
   def timeline(provider, model_id, limit \\ @default_timeline_limit) when is_binary(model_id) do
     with {:ok, normalized_limit} <- normalize_limit(limit),
          {:ok, events} <- LLMDB.History.timeline(provider, model_id) do
-      {:ok, Enum.take(events, normalized_limit)}
+      {:ok, Enum.take(events, -normalized_limit)}
     end
   end
 

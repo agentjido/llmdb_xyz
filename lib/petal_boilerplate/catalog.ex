@@ -61,9 +61,18 @@ defmodule PetalBoilerplate.Catalog do
       :ets.new(@ets_table, [:named_table, :set, :public, read_concurrency: true])
     end
 
-    models = LLMDB.models() |> Enum.map(&enrich_model/1)
+    raw_models = LLMDB.models()
+    history_index = build_history_index()
+    models = raw_models |> Enum.map(&enrich_model(&1, history_index))
     :ets.insert(@ets_table, {:models, models})
     :ok
+  end
+
+  @doc """
+  Rebuilds the ETS cache using the current runtime configuration.
+  """
+  def refresh_cache do
+    init_cache()
   end
 
   @doc """
@@ -90,7 +99,7 @@ defmodule PetalBoilerplate.Catalog do
       _table ->
         case :ets.lookup(@ets_table, :models) do
           [{:models, models}] ->
-            models
+            maybe_attach_history_metadata(models)
 
           [] ->
             init_cache()
@@ -209,7 +218,7 @@ defmodule PetalBoilerplate.Catalog do
 
   # Private functions
 
-  defp enrich_model(model) do
+  defp enrich_model(model, history_index) do
     aliases = Enum.join(model.aliases || [], " ")
     tags = Enum.join(model.tags || [], " ")
 
@@ -247,6 +256,7 @@ defmodule PetalBoilerplate.Catalog do
 
     dom_id = "model-#{model.provider}-#{:erlang.phash2({model.provider, model.id})}"
     original_id = model.id
+    history_summary = Map.get(history_index, history_key(model.provider, original_id), %{})
 
     model
     |> Map.put(:id, dom_id)
@@ -259,14 +269,49 @@ defmodule PetalBoilerplate.Catalog do
     |> Map.put(:__output, get_in(model.limits, [:output]) || 0)
     |> Map.put(:__cost_in, get_in(model.cost, [:input]))
     |> Map.put(:__cost_out, get_in(model.cost, [:output]))
+    |> Map.put(:__last_changed_at, Map.get(history_summary, :captured_at))
+    |> Map.put(:__last_changed_epoch, Map.get(history_summary, :captured_at_epoch))
     |> Map.put(:__allowed?, LLMDB.allowed?(model))
     |> Map.put(:__provider_str, to_string(model.provider))
+  end
+
+  defp maybe_attach_history_metadata([]), do: []
+
+  defp maybe_attach_history_metadata(models) do
+    if missing_history_metadata?(models) do
+      case build_history_index() do
+        history_index when map_size(history_index) > 0 ->
+          refreshed_models =
+            Enum.map(models, fn model ->
+              model_id = Map.get(model, :model_id, Map.get(model, :id))
+              history_summary = Map.get(history_index, history_key(model.provider, model_id), %{})
+
+              model
+              |> Map.put(:__last_changed_at, Map.get(history_summary, :captured_at))
+              |> Map.put(:__last_changed_epoch, Map.get(history_summary, :captured_at_epoch))
+            end)
+
+          :ets.insert(@ets_table, {:models, refreshed_models})
+          refreshed_models
+
+        _ ->
+          models
+      end
+    else
+      models
+    end
+  end
+
+  defp missing_history_metadata?(models) do
+    Enum.any?(models) and Enum.all?(models, &is_nil(Map.get(&1, :__last_changed_epoch)))
   end
 
   defp get_capability(caps, [key]), do: Map.get(caps, key)
   defp get_capability(caps, path), do: get_in(caps, path)
 
   defp filter_models(models, filters) do
+    recent_change_cutoff = recent_change_cutoff_epoch(filters.changed_within_days)
+
     models
     |> Enum.filter(fn model ->
       passes_provider?(model, filters.provider_ids) and
@@ -275,6 +320,7 @@ defmodule PetalBoilerplate.Catalog do
         passes_allowed?(model, filters.allowed_only) and
         passes_capabilities?(model, filters.capabilities) and
         passes_modalities?(model, filters.modalities_in, filters.modalities_out) and
+        passes_recent_change?(model, recent_change_cutoff) and
         passes_limits?(model, filters.min_context, filters.min_output) and
         passes_cost?(model, filters.max_cost_in, filters.max_cost_out)
     end)
@@ -314,6 +360,15 @@ defmodule PetalBoilerplate.Catalog do
     in_ok and out_ok
   end
 
+  defp passes_recent_change?(_model, nil), do: true
+
+  defp passes_recent_change?(%{__last_changed_epoch: epoch}, cutoff_epoch)
+       when is_integer(epoch) and is_integer(cutoff_epoch) do
+    epoch >= cutoff_epoch
+  end
+
+  defp passes_recent_change?(_model, _cutoff_epoch), do: false
+
   defp passes_limits?(%{__context: ctx, __output: out}, min_context, min_output) do
     context_ok = is_nil(min_context) or (is_integer(ctx) and ctx >= min_context)
     output_ok = is_nil(min_output) or (is_integer(out) and out >= min_output)
@@ -324,6 +379,10 @@ defmodule PetalBoilerplate.Catalog do
     in_ok = is_nil(max_in) or (is_number(cin) and cin <= max_in)
     out_ok = is_nil(max_out) or (is_number(cout) and cout <= max_out)
     in_ok and out_ok
+  end
+
+  defp sort_models(models, %{by: :recently_changed, dir: dir}) do
+    Enum.sort(models, &compare_recently_changed(&1, &2, dir))
   end
 
   defp sort_models(models, %{by: by, dir: dir}) do
@@ -339,6 +398,83 @@ defmodule PetalBoilerplate.Catalog do
   defp sort_value(model, :output), do: model.__output || 0
   defp sort_value(model, :cost_in), do: model.__cost_in || 999_999
   defp sort_value(model, :cost_out), do: model.__cost_out || 999_999
+
+  defp compare_recently_changed(a, b, dir) do
+    a_epoch = Map.get(a, :__last_changed_epoch)
+    b_epoch = Map.get(b, :__last_changed_epoch)
+
+    cond do
+      is_integer(a_epoch) and is_integer(b_epoch) and a_epoch != b_epoch ->
+        if dir == :asc, do: a_epoch <= b_epoch, else: a_epoch >= b_epoch
+
+      is_integer(a_epoch) ->
+        true
+
+      is_integer(b_epoch) ->
+        false
+
+      true ->
+        recent_tie_breaker(a) <= recent_tie_breaker(b)
+    end
+  end
+
+  defp recent_tie_breaker(model) do
+    {Map.get(model, :__provider_str, ""), Map.get(model, :model_id, model.id)}
+  end
+
+  defp recent_change_cutoff_epoch(nil), do: nil
+
+  defp recent_change_cutoff_epoch(days) when is_integer(days) and days > 0 do
+    DateTime.utc_now()
+    |> DateTime.add(-days * 86_400, :second)
+    |> DateTime.to_unix()
+  end
+
+  defp build_history_index do
+    history = history_module()
+
+    case history.recent(500) do
+      {:ok, events} ->
+        Enum.reduce(events, %{}, fn event, acc ->
+          model_key = map_get(event, "model_key", :model_key)
+          captured_at = map_get(event, "captured_at", :captured_at)
+
+          cond do
+            not is_binary(model_key) or not is_binary(captured_at) ->
+              acc
+
+            Map.has_key?(acc, model_key) ->
+              acc
+
+            true ->
+              Map.put(acc, model_key, %{
+                captured_at: captured_at,
+                captured_at_epoch: iso8601_to_unix(captured_at)
+              })
+          end
+        end)
+
+      _ ->
+        %{}
+    end
+  end
+
+  defp history_module do
+    Application.get_env(:petal_boilerplate, :history_module, PetalBoilerplate.History)
+  end
+
+  defp history_key(provider, model_id), do: to_string(provider) <> ":" <> model_id
+
+  defp iso8601_to_unix(timestamp) when is_binary(timestamp) do
+    case DateTime.from_iso8601(timestamp) do
+      {:ok, datetime, _offset} -> DateTime.to_unix(datetime)
+      _ -> nil
+    end
+  end
+
+  defp map_get(map, string_key, atom_key) when is_map(map) do
+    Map.get(map, string_key) || Map.get(map, atom_key)
+  end
 
   defp sort_direction(:asc), do: :asc
   defp sort_direction(:desc), do: :desc

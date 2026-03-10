@@ -66,7 +66,7 @@
         const stored = localStorage.getItem("theme");
         const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
         const theme = stored || (prefersDark ? "dark" : "light");
-        document.body.classList.toggle("dark", theme === "dark");
+        document.documentElement.classList.toggle("dark", theme === "dark");
       })();
     </script>
   </head>

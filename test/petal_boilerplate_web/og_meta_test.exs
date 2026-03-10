@@ -22,6 +22,15 @@ defmodule PetalBoilerplateWeb.OgMetaTest do
       assert html =~ ~s(property="og:url" content="https://llmdb.xyz/about")
     end
 
+    test "history page has correct OG tags", %{conn: conn} do
+      conn = get(conn, ~p"/history")
+      html = html_response(conn, 200)
+
+      assert html =~ ~s(property="og:title" content="Recent History")
+      assert html =~ ~s(property="og:description" content="Track recent llm_db)
+      assert html =~ ~s(property="og:url" content="https://llmdb.xyz/history")
+    end
+
     test "model detail page has correct OG tags", %{conn: conn} do
       conn = get(conn, ~p"/models/openai/gpt-4o")
       html = html_response(conn, 200)

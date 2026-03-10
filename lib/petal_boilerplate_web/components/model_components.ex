@@ -74,6 +74,14 @@ defmodule PetalBoilerplateWeb.ModelComponents do
         </a>
 
         <a
+          href="/history"
+          class="text-sm hidden sm:block transition-colors hover:opacity-80"
+          style="color: hsl(var(--muted-foreground));"
+        >
+          History
+        </a>
+
+        <a
           href="/about"
           class="text-sm hidden sm:block transition-colors hover:opacity-80"
           style="color: hsl(var(--muted-foreground));"
@@ -597,6 +605,7 @@ defmodule PetalBoilerplateWeb.ModelComponents do
 
   defp has_active_filters?(filters) do
     MapSet.size(filters.provider_ids) > 0 ||
+      is_integer(filters.changed_within_days) ||
       (filters.min_context != nil && filters.min_context > 0) ||
       filters.min_output != nil ||
       filters.max_cost_in != nil ||
@@ -679,6 +688,20 @@ defmodule PetalBoilerplateWeb.ModelComponents do
          |> Enum.map(fn mod ->
            %{label: "Out: #{mod_label(mod)}", kind: "modality_out", value: to_string(mod)}
          end))
+
+    chips =
+      if is_integer(filters.changed_within_days) do
+        chips ++
+          [
+            %{
+              label: "Changed in #{filters.changed_within_days}d",
+              kind: "changed_within",
+              value: nil
+            }
+          ]
+      else
+        chips
+      end
 
     chips =
       if filters.min_context && filters.min_context > 0 do
@@ -775,6 +798,7 @@ defmodule PetalBoilerplateWeb.ModelComponents do
   defp active_filter_count(filters) when is_map(filters) do
     count = 0
     count = if MapSet.size(filters.provider_ids) > 0, do: count + 1, else: count
+    count = if is_integer(filters.changed_within_days), do: count + 1, else: count
     count = if filters.min_context && filters.min_context > 0, do: count + 1, else: count
     count = if filters.max_cost_in && filters.max_cost_in < 100, do: count + 1, else: count
     count
@@ -856,6 +880,10 @@ defmodule PetalBoilerplateWeb.ModelComponents do
                     <div class="font-medium">{model.name}</div>
                     <div class="text-xs font-mono" style="color: hsl(var(--muted-foreground));">
                       {model.model_id}
+                      <span :if={model.__last_changed_at}>
+                        {" • Updated "}
+                        {String.slice(model.__last_changed_at, 0, 10)}
+                      </span>
                     </div>
                   </div>
                   <%= if model.deprecated || lifecycle_status(model) != "active" do %>
@@ -952,6 +980,14 @@ defmodule PetalBoilerplateWeb.ModelComponents do
                 </div>
                 <div class="text-xs mt-0.5" style="color: hsl(var(--muted-foreground));">
                   {model.provider}
+                </div>
+
+                <div
+                  :if={model.__last_changed_at}
+                  class="text-xs mt-1"
+                  style="color: hsl(var(--muted-foreground));"
+                >
+                  Updated {String.slice(model.__last_changed_at, 0, 10)}
                 </div>
 
                 <div

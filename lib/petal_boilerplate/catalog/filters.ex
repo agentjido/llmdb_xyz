@@ -15,6 +15,7 @@ defmodule PetalBoilerplate.Catalog.Filters do
           capabilities: %{atom() => boolean()},
           modalities_in: MapSet.t(atom()),
           modalities_out: MapSet.t(atom()),
+          changed_within_days: integer() | nil,
           min_context: integer() | nil,
           min_output: integer() | nil,
           max_cost_in: float() | nil,
@@ -29,6 +30,7 @@ defmodule PetalBoilerplate.Catalog.Filters do
             capabilities: %{},
             modalities_in: MapSet.new(),
             modalities_out: MapSet.new(),
+            changed_within_days: nil,
             min_context: nil,
             min_output: nil,
             max_cost_in: nil,
@@ -174,6 +176,7 @@ defmodule PetalBoilerplate.Catalog.Filters do
       capabilities: parse_capabilities(params),
       modalities_in: parse_modalities(params["modalities_in"] || params["in"]),
       modalities_out: parse_modalities(params["modalities_out"] || params["out"]),
+      changed_within_days: parse_changed_within(params["changed"]),
       min_context: parse_int(params["min_context"] || params["ctx"]),
       min_output: parse_int(params["min_output"]),
       max_cost_in: parse_float(params["max_cost_in"] || params["cost"]),
@@ -214,6 +217,11 @@ defmodule PetalBoilerplate.Catalog.Filters do
     params =
       if MapSet.size(f.modalities_out) > 0,
         do: Map.put(params, "out", f.modalities_out |> MapSet.to_list() |> Enum.join(",")),
+        else: params
+
+    params =
+      if f.changed_within_days,
+        do: Map.put(params, "changed", f.changed_within_days),
         else: params
 
     params = if f.min_context, do: Map.put(params, "ctx", f.min_context), else: params
@@ -321,6 +329,14 @@ defmodule PetalBoilerplate.Catalog.Filters do
     do: %{f | provider_search: term}
 
   @doc """
+  Sets the recent-change window filter in days.
+  """
+  def set_changed_within(%__MODULE__{} = f, nil), do: %{f | changed_within_days: nil}
+
+  def set_changed_within(%__MODULE__{} = f, days) when is_integer(days) and days > 0,
+    do: %{f | changed_within_days: days}
+
+  @doc """
   Applies a quick filter by key, toggling it on/off.
   """
   def apply_quick_filter(%__MODULE__{} = f, key) when is_atom(key) do
@@ -381,6 +397,7 @@ defmodule PetalBoilerplate.Catalog.Filters do
     count = count + Enum.count(Map.values(f.capabilities), & &1)
     count = count + MapSet.size(f.modalities_in)
     count = count + MapSet.size(f.modalities_out)
+    count = if f.changed_within_days, do: count + 1, else: count
     count = if f.min_context, do: count + 1, else: count
     count = if f.min_output, do: count + 1, else: count
     count = if f.max_cost_in, do: count + 1, else: count
@@ -430,6 +447,7 @@ defmodule PetalBoilerplate.Catalog.Filters do
       capabilities: f.capabilities,
       modalities_in: f.modalities_in,
       modalities_out: f.modalities_out,
+      changed_within_days: f.changed_within_days,
       min_context: f.min_context,
       min_output: f.min_output,
       max_cost_in: f.max_cost_in,
@@ -545,6 +563,18 @@ defmodule PetalBoilerplate.Catalog.Filters do
     case Float.parse(str) do
       {float, _} -> float
       :error -> nil
+    end
+  end
+
+  defp parse_changed_within(nil), do: nil
+  defp parse_changed_within(""), do: nil
+
+  defp parse_changed_within(days) when is_integer(days) and days > 0, do: days
+
+  defp parse_changed_within(days) when is_binary(days) do
+    case Integer.parse(days) do
+      {parsed, ""} when parsed > 0 -> parsed
+      _ -> nil
     end
   end
 

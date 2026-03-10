@@ -19,38 +19,82 @@
   />
 
   <div class="flex-1 w-full max-w-full py-3 px-3 sm:px-4 md:py-4">
-    <div class="flex items-center justify-between mb-3 gap-2">
+    <div class="mb-3 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
       <div class="text-xs sm:text-sm" style="color: hsl(var(--muted-foreground));">
         <span class="font-medium" style="color: hsl(var(--foreground));">{@total}</span>
         <span class="hidden xs:inline">of {length(@all_models)}</span> models
       </div>
-      <%= if @total_pages > 1 do %>
-        <div class="flex items-center gap-2">
-          <button
-            type="button"
-            phx-click="page"
-            phx-value-page={@page - 1}
-            disabled={@page <= 1}
-            class="px-3 py-1 text-sm border rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            style="border-color: hsl(var(--border)); color: hsl(var(--foreground));"
+
+      <div class="flex flex-wrap items-center gap-2 xl:justify-end">
+        <form phx-change="set_changed_within">
+          <label class="sr-only" for="changed-within-select">Changed within</label>
+          <select
+            id="changed-within-select"
+            name="changed_within"
+            class="h-9 rounded-md border px-3 text-sm"
+            style="border-color: hsl(var(--border)); background-color: hsl(var(--background)); color: hsl(var(--foreground));"
           >
-            ← Prev
-          </button>
-          <span class="text-xs" style="color: hsl(var(--muted-foreground));">
-            {@page} / {@total_pages}
-          </span>
-          <button
-            type="button"
-            phx-click="page"
-            phx-value-page={@page + 1}
-            disabled={@page >= @total_pages}
-            class="px-3 py-1 text-sm border rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            style="border-color: hsl(var(--border)); color: hsl(var(--foreground));"
+            <option value="" selected={is_nil(@filters.changed_within_days)}>All models</option>
+            <option value="7" selected={@filters.changed_within_days == 7}>
+              Changed in last 7d
+            </option>
+            <option value="30" selected={@filters.changed_within_days == 30}>
+              Changed in last 30d
+            </option>
+          </select>
+        </form>
+
+        <form phx-change="set_sort">
+          <label class="sr-only" for="sort-select">Sort models</label>
+          <select
+            id="sort-select"
+            name="sort"
+            class="h-9 rounded-md border px-3 text-sm"
+            style="border-color: hsl(var(--border)); background-color: hsl(var(--background)); color: hsl(var(--foreground));"
           >
-            Next →
-          </button>
-        </div>
-      <% end %>
+            <option value="default" selected={sort_control_value(@sort) == "default"}>
+              Default order
+            </option>
+            <option
+              value="recently_changed"
+              selected={sort_control_value(@sort) == "recently_changed"}
+            >
+              Recently changed
+            </option>
+            <option value="custom" disabled selected={sort_control_value(@sort) == "custom"}>
+              Custom table sort
+            </option>
+          </select>
+        </form>
+
+        <%= if @total_pages > 1 do %>
+          <div class="flex items-center gap-2">
+            <button
+              type="button"
+              phx-click="page"
+              phx-value-page={@page - 1}
+              disabled={@page <= 1}
+              class="px-3 py-1 text-sm border rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              style="border-color: hsl(var(--border)); color: hsl(var(--foreground));"
+            >
+              ← Prev
+            </button>
+            <span class="text-xs" style="color: hsl(var(--muted-foreground));">
+              {@page} / {@total_pages}
+            </span>
+            <button
+              type="button"
+              phx-click="page"
+              phx-value-page={@page + 1}
+              disabled={@page >= @total_pages}
+              class="px-3 py-1 text-sm border rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              style="border-color: hsl(var(--border)); color: hsl(var(--foreground));"
+            >
+              Next →
+            </button>
+          </div>
+        <% end %>
+      </div>
     </div>
 
     <div

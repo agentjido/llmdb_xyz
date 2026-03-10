@@ -18,6 +18,7 @@ defmodule PetalBoilerplateWeb.Router do
     pipe_through :browser
 
     live "/", ModelLive, :index
+    live "/history", HistoryLive, :index
     live "/models/:provider/*id", ModelLive, :show
     live "/about", AboutLive, :index
 
