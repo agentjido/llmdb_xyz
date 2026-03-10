@@ -20,6 +20,10 @@ config :petal_boilerplate, PetalBoilerplateWeb.Endpoint,
   secret_key_base: "twi598leTbcJNAxvKitZGPMr8ZDu9ONMsUY1vk6ubAxy5Dmzx/7QrR9at+voP4X2",
   server: false
 
+config :petal_boilerplate,
+  canonical_host: nil,
+  enable_analytics: false
+
 # In test we don't send emails.
 config :petal_boilerplate, PetalBoilerplate.Mailer, adapter: Swoosh.Adapters.Test
 

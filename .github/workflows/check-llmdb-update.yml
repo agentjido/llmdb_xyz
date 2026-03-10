@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   check-update:
-    name: Check for new llm_db commit
+    name: Check for new llm_db release
     runs-on: ubuntu-latest
 
     env:
@@ -35,20 +35,20 @@ jobs:
           key: deps-${{ runner.os }}-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-${{ hashFiles('mix.lock') }}
           restore-keys: deps-${{ runner.os }}-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-
 
-      - name: Get locked llm_db commit from mix.lock
+      - name: Get locked llm_db release tag from mix.lock
         id: locked
         run: |
           locked=$(elixir -e '
           {lock, _binding} = Code.eval_file("mix.lock")
 
           case lock[:llm_db] do
-            {:git, _url, ref, opts} ->
-              branch = Keyword.get(opts, :branch)
+            {:git, _url, _ref, opts} ->
+              tag = Keyword.get(opts, :tag)
 
-              if branch == "main" and is_binary(ref) do
-                IO.puts(ref)
+              if is_binary(tag) do
+                IO.puts(tag)
               else
-                raise "Expected llm_db git branch main, got #{inspect(opts)}"
+                raise "Expected llm_db git tag in mix.lock, got #{inspect(opts)}"
               end
 
             other ->
@@ -56,59 +56,87 @@ jobs:
           end
           ')
 
-          echo "sha=$locked" >> "$GITHUB_OUTPUT"
-          echo "short_sha=${locked:0:7}" >> "$GITHUB_OUTPUT"
-          echo "Locked llm_db commit: $locked"
+          echo "tag=$locked" >> "$GITHUB_OUTPUT"
+          echo "Locked llm_db tag: $locked"
 
-      - name: Get latest llm_db main commit
+      - name: Get latest stable llm_db release tag from GitHub
         id: upstream
         run: |
-          upstream=$(git ls-remote https://github.com/agentjido/llm_db.git refs/heads/main | cut -f1)
-          echo "sha=$upstream" >> "$GITHUB_OUTPUT"
-          echo "short_sha=${upstream:0:7}" >> "$GITHUB_OUTPUT"
-          echo "Upstream llm_db main commit: $upstream"
+          upstream=$(curl -fsSL https://api.github.com/repos/agentjido/llm_db/releases/latest | python3 -c 'import json,sys; print(json.load(sys.stdin)["tag_name"])')
+          echo "tag=$upstream" >> "$GITHUB_OUTPUT"
+          echo "Latest stable llm_db tag: $upstream"
 
-      - name: Compare locked vs upstream commits
+      - name: Compare locked vs upstream tags
         id: compare
+        env:
+          LOCKED_TAG: ${{ steps.locked.outputs.tag }}
+          UPSTREAM_TAG: ${{ steps.upstream.outputs.tag }}
         run: |
-          if [ "${{ steps.locked.outputs.sha }}" = "${{ steps.upstream.outputs.sha }}" ]; then
+          comparison=$(elixir -e '
+          locked = System.fetch_env!("LOCKED_TAG")
+          upstream = System.fetch_env!("UPSTREAM_TAG")
+
+          case Version.compare(locked, upstream) do
+            :lt -> IO.puts("lt")
+            :eq -> IO.puts("eq")
+            :gt -> IO.puts("gt")
+          end
+          ')
+
+          if [ "$comparison" = "eq" ] || [ "$comparison" = "gt" ]; then
             echo "already_latest=true" >> "$GITHUB_OUTPUT"
             echo "Already on latest version, nothing to do."
           else
             echo "already_latest=false" >> "$GITHUB_OUTPUT"
-            echo "New commit available: ${{ steps.upstream.outputs.short_sha }} (current: ${{ steps.locked.outputs.short_sha }})"
+            echo "New release available: ${{ steps.upstream.outputs.tag }} (current: ${{ steps.locked.outputs.tag }})"
           fi
 
       - name: Update llm_db dependency
         id: update
         if: steps.compare.outputs.already_latest == 'false'
+        env:
+          UPSTREAM_TAG: ${{ steps.upstream.outputs.tag }}
         run: |
+          python3 - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          path = Path("mix.exs")
+          source = path.read_text()
+          updated, count = re.subn(
+              r'(\{:llm_db,\s*git:\s*"https://github\.com/agentjido/llm_db\.git",\s*tag:\s*")[^"]+(")',
+              rf'\g<1>{os.environ["UPSTREAM_TAG"]}\2',
+              source,
+          )
+
+          if count != 1:
+              raise SystemExit("Expected exactly one llm_db dependency entry in mix.exs")
+
+          path.write_text(updated)
+          PY
+
           mix local.hex --force
           mix local.rebar --force
           mix deps.get
-          mix deps.update llm_db
 
-          if git diff --quiet -- mix.lock; then
+          if git diff --quiet -- mix.exs mix.lock; then
             echo "updated=false" >> "$GITHUB_OUTPUT"
-            echo "mix.lock unchanged after update."
+            echo "llm_db dependency already up to date."
           else
             echo "updated=true" >> "$GITHUB_OUTPUT"
-            echo "mix.lock updated."
+            echo "mix.exs and mix.lock updated."
           fi
+
+      - name: Run tests
+        if: steps.update.outputs.updated == 'true'
+        run: mix test
 
       - name: Commit and push update
         if: steps.update.outputs.updated == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add mix.lock
-          git commit -m "mix: update llm_db to ${{ steps.upstream.outputs.short_sha }}"
+          git add mix.exs mix.lock
+          git commit -m "mix: update llm_db to ${{ steps.upstream.outputs.tag }}"
           git push
-
-      - name: Deploy to Fly PROD
-        if: steps.update.outputs.updated == 'true'
-        uses: superfly/flyctl-actions@master
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-        with:
-          args: "deploy -c build/llmdb-prod.toml -a llmdb-prod --remote-only"

@@ -23,10 +23,12 @@ Add it to your project:
 ```elixir
 def deps do
   [
-    {:llm_db, git: "https://github.com/agentjido/llm_db.git", branch: "main"}
+    {:llm_db, "~> 2026.3"}
   ]
 end
 ```
+
+This site pins the latest GitHub release tag in [`mix.exs`](/Users/mhostetler/Source/ReqLLM/llmdb_xyz/mix.exs) so the bundled `priv/llm_db/history/**` artifacts are available at runtime.
 
 ### Example Usage
 
