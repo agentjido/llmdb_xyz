@@ -69,6 +69,42 @@ defmodule PetalBoilerplate.CatalogTest do
     assert is_integer(refreshed_model.__last_changed_epoch)
   end
 
+  test "list_models filters by required input and output modalities" do
+    filters = %{
+      Catalog.default_filters()
+      | modalities_in: MapSet.new([:image, :audio]),
+        modalities_out: MapSet.new([:audio])
+    }
+
+    models = [
+      build_model("text-only", [:text], [:text]),
+      build_model("image-to-text", [:text, :image], [:text]),
+      build_model("multimodal-audio", [:text, :image, :audio], [:text, :audio])
+    ]
+
+    result = Catalog.list_models(models, filters, Catalog.default_sort())
+
+    assert Enum.map(result, & &1.id) == ["multimodal-audio"]
+  end
+
   defp restore_env(key, nil), do: Application.delete_env(:petal_boilerplate, key)
   defp restore_env(key, value), do: Application.put_env(:petal_boilerplate, key, value)
+
+  defp build_model(id, input_modalities, output_modalities) do
+    %{
+      id: id,
+      provider: :test_provider,
+      deprecated: false,
+      __provider_str: "test_provider",
+      __search: id,
+      __allowed?: true,
+      __caps: MapSet.new(),
+      __in: MapSet.new(input_modalities),
+      __out: MapSet.new(output_modalities),
+      __context: 0,
+      __output: 0,
+      __cost_in: 0.0,
+      __cost_out: 0.0
+    }
+  end
 end

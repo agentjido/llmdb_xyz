@@ -110,7 +110,7 @@ defmodule PetalBoilerplateWeb.ModelLive do
 
   @impl true
   def handle_event("filter", params, socket) do
-    filters = Filters.from_params(params)
+    filters = merge_filters(socket.assigns.filters, params)
     {:noreply, apply_filters(socket, filters, push_url: true)}
   end
 
@@ -507,6 +507,58 @@ defmodule PetalBoilerplateWeb.ModelLive do
 
   defp parse_float_value(value) when is_float(value), do: value
   defp parse_float_value(value) when is_integer(value), do: value * 1.0
+
+  defp merge_filters(%Filters{} = current_filters, params) when is_map(params) do
+    target = List.wrap(params["_target"])
+    cleaned_params = Map.delete(params, "_target")
+
+    current_filters
+    |> current_filter_params()
+    |> drop_replaced_filter_keys(target)
+    |> Map.merge(cleaned_params)
+    |> Filters.from_params()
+  end
+
+  defp current_filter_params(%Filters{} = filters) do
+    filters
+    |> Filters.to_params()
+    |> Map.put("provider_search", filters.provider_search)
+  end
+
+  defp drop_replaced_filter_keys(params, ["search"]), do: Map.drop(params, ["q"])
+
+  defp drop_replaced_filter_keys(params, ["provider_search"]),
+    do: Map.drop(params, ["provider_search"])
+
+  defp drop_replaced_filter_keys(params, ["changed_within"]), do: Map.drop(params, ["changed"])
+  defp drop_replaced_filter_keys(params, ["min_context"]), do: Map.drop(params, ["ctx"])
+  defp drop_replaced_filter_keys(params, ["min_output"]), do: Map.drop(params, ["min_output"])
+  defp drop_replaced_filter_keys(params, ["max_cost_in"]), do: Map.drop(params, ["cost"])
+  defp drop_replaced_filter_keys(params, ["max_cost_out"]), do: Map.drop(params, ["max_cost_out"])
+
+  defp drop_replaced_filter_keys(params, ["show_deprecated"]),
+    do: Map.drop(params, ["show_deprecated"])
+
+  defp drop_replaced_filter_keys(params, ["allowed_only"]), do: Map.drop(params, ["allowed_only"])
+
+  defp drop_replaced_filter_keys(params, ["providers", _provider_id]),
+    do: Map.drop(params, ["providers"])
+
+  defp drop_replaced_filter_keys(params, ["modalities_in", _modality]),
+    do: Map.drop(params, ["in"])
+
+  defp drop_replaced_filter_keys(params, ["modalities_out", _modality]),
+    do: Map.drop(params, ["out"])
+
+  defp drop_replaced_filter_keys(params, [field]) when is_binary(field) do
+    if String.starts_with?(field, "cap_") do
+      Map.drop(params, ["caps"])
+    else
+      params
+    end
+  end
+
+  defp drop_replaced_filter_keys(params, _target), do: params
 
   def format_number(value), do: Catalog.format_number(value)
   def format_cost(value), do: Catalog.format_cost(value)
