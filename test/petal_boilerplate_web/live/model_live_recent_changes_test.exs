@@ -9,8 +9,11 @@ defmodule PetalBoilerplateWeb.ModelLiveRecentChangesTest do
     def meta do
       {:ok,
        %{
-         "from_commit" => "1111111111111111111111111111111111111111",
-         "to_commit" => "2222222222222222222222222222222222222222",
+         "from_snapshot_id" => "1111111111111111111111111111111111111111111111111111111111111111",
+         "to_snapshot_id" => "2222222222222222222222222222222222222222222222222222222222222222",
+         "from_ref" => "1111111111111111111111111111111111111111111111111111111111111111",
+         "to_ref" => "2222222222222222222222222222222222222222222222222222222222222222",
+         "range_kind" => "snapshots",
          "generated_at" => "2026-03-10T00:00:00Z"
        }}
     end
@@ -35,7 +38,7 @@ defmodule PetalBoilerplateWeb.ModelLiveRecentChangesTest do
     original_timeline_events =
       Application.get_env(:petal_boilerplate, :model_live_timeline_events)
 
-    models = Catalog.list_all_models() |> Enum.take(3)
+    models = distinct_models_for_recent_change_test()
     [recent_model, older_model, untouched_model] = models
     now = DateTime.utc_now()
 
@@ -71,10 +74,11 @@ defmodule PetalBoilerplateWeb.ModelLiveRecentChangesTest do
     untouched_model: untouched_model
   } do
     {:ok, _view, html} = live(conn, "/?changed=7")
+    row_texts = rendered_model_rows(html)
 
-    assert html =~ recent_model.model_id
-    refute html =~ older_model.model_id
-    refute html =~ untouched_model.model_id
+    assert Enum.any?(row_texts, &String.contains?(&1, recent_model.model_id))
+    refute Enum.any?(row_texts, &String.contains?(&1, older_model.model_id))
+    refute Enum.any?(row_texts, &String.contains?(&1, untouched_model.model_id))
     assert html =~ "Changed in 7d"
   end
 
@@ -84,11 +88,41 @@ defmodule PetalBoilerplateWeb.ModelLiveRecentChangesTest do
     older_model: older_model
   } do
     {:ok, _view, html} = live(conn, "/?sort=recently_changed&dir=desc")
+    row_texts = rendered_model_rows(html)
 
-    assert position_of(html, recent_model.model_id) < position_of(html, older_model.model_id)
+    assert position_of_row(row_texts, recent_model.model_id) <
+             position_of_row(row_texts, older_model.model_id)
   end
 
   defp model_key(model), do: "#{model.provider}:#{model.model_id}"
+
+  defp distinct_models_for_recent_change_test do
+    Catalog.list_all_models()
+    |> Enum.reduce_while([], fn model, selected ->
+      if compatible_model_id?(model.model_id, selected) do
+        next = [model | selected]
+
+        if length(next) == 3 do
+          {:halt, Enum.reverse(next)}
+        else
+          {:cont, next}
+        end
+      else
+        {:cont, selected}
+      end
+    end)
+    |> case do
+      models when length(models) == 3 -> models
+      _ -> flunk("expected at least 3 models with non-overlapping model ids")
+    end
+  end
+
+  defp compatible_model_id?(model_id, selected) do
+    Enum.all?(selected, fn selected_model ->
+      selected_id = selected_model.model_id
+      not String.contains?(model_id, selected_id) and not String.contains?(selected_id, model_id)
+    end)
+  end
 
   defp history_event(captured_at, model_key \\ nil) do
     %{
@@ -99,10 +133,22 @@ defmodule PetalBoilerplateWeb.ModelLiveRecentChangesTest do
     }
   end
 
-  defp position_of(html, needle) do
-    case :binary.match(html, needle) do
-      {position, _length} -> position
-      :nomatch -> flunk("expected #{inspect(needle)} to appear in rendered HTML")
+  defp rendered_model_rows(html) do
+    html
+    |> Floki.parse_document!()
+    |> Floki.find("tbody#models-table-body tr")
+    |> Enum.map(fn row ->
+      row
+      |> Floki.text(sep: " ", deep: true)
+      |> String.replace(~r/\s+/, " ")
+      |> String.trim()
+    end)
+  end
+
+  defp position_of_row(row_texts, needle) do
+    case Enum.find_index(row_texts, &String.contains?(&1, needle)) do
+      nil -> flunk("expected #{inspect(needle)} to appear in rendered rows")
+      position -> position
     end
   end
 

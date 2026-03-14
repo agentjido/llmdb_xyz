@@ -43,10 +43,36 @@ defmodule PetalBoilerplate.History do
   end
 
   defp compact_meta(meta) do
+    from_commit = map_get(meta, "from_commit", :from_commit)
+    to_commit = map_get(meta, "to_commit", :to_commit)
+    from_snapshot_id = map_get(meta, "from_snapshot_id", :from_snapshot_id)
+    to_snapshot_id = map_get(meta, "to_snapshot_id", :to_snapshot_id)
+
+    {range_kind, from_ref, to_ref} =
+      cond do
+        is_binary(from_snapshot_id) and is_binary(to_snapshot_id) ->
+          {"snapshots", from_snapshot_id, to_snapshot_id}
+
+        is_binary(from_commit) and is_binary(to_commit) ->
+          {"commits", from_commit, to_commit}
+
+        true ->
+          {nil, nil, nil}
+      end
+
     %{
       "from_commit" => map_get(meta, "from_commit", :from_commit),
       "to_commit" => map_get(meta, "to_commit", :to_commit),
-      "generated_at" => map_get(meta, "generated_at", :generated_at)
+      "from_snapshot_id" => from_snapshot_id,
+      "to_snapshot_id" => to_snapshot_id,
+      "from_ref" => from_ref,
+      "to_ref" => to_ref,
+      "range_kind" => range_kind,
+      "generated_at" => map_get(meta, "generated_at", :generated_at),
+      "snapshots_written" => map_get(meta, "snapshots_written", :snapshots_written),
+      "unique_snapshots_written" =>
+        map_get(meta, "unique_snapshots_written", :unique_snapshots_written),
+      "events_written" => map_get(meta, "events_written", :events_written)
     }
   end
 

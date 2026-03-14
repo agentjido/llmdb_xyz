@@ -465,14 +465,31 @@ defmodule PetalBoilerplateWeb.HistoryLive do
   defp truncate_history_value(value, _max_len), do: value
 
   defp history_meta_summary(meta) do
-    from_commit = map_get(meta, "from_commit", :from_commit)
-    to_commit = map_get(meta, "to_commit", :to_commit)
+    range_kind =
+      map_get(meta, "range_kind", :range_kind) ||
+        if(
+          is_binary(map_get(meta, "from_snapshot_id", :from_snapshot_id)) and
+            is_binary(map_get(meta, "to_snapshot_id", :to_snapshot_id)),
+          do: "snapshots",
+          else: "commits"
+        )
+
+    from_ref =
+      map_get(meta, "from_ref", :from_ref) ||
+        map_get(meta, "from_snapshot_id", :from_snapshot_id) ||
+        map_get(meta, "from_commit", :from_commit)
+
+    to_ref =
+      map_get(meta, "to_ref", :to_ref) ||
+        map_get(meta, "to_snapshot_id", :to_snapshot_id) ||
+        map_get(meta, "to_commit", :to_commit)
+
     generated_at = map_get(meta, "generated_at", :generated_at)
 
-    commit_summary =
+    range_summary =
       cond do
-        is_binary(from_commit) and is_binary(to_commit) ->
-          "commits #{short_sha(from_commit)} -> #{short_sha(to_commit)}"
+        is_binary(from_ref) and is_binary(to_ref) ->
+          "#{range_kind || "history"} #{short_sha(from_ref)} -> #{short_sha(to_ref)}"
 
         true ->
           nil
@@ -483,7 +500,7 @@ defmodule PetalBoilerplateWeb.HistoryLive do
         "generated #{String.slice(generated_at, 0, 19)}"
       end
 
-    [commit_summary, generated_summary]
+    [range_summary, generated_summary]
     |> Enum.reject(&is_nil/1)
     |> case do
       [] -> "Recent history feed"

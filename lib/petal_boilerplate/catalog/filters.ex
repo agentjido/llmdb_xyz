@@ -174,7 +174,7 @@ defmodule PetalBoilerplate.Catalog.Filters do
       provider_search: params["provider_search"] || "",
       provider_ids: parse_provider_ids(params["providers"]),
       capabilities: parse_capabilities(params),
-      modalities_in: parse_modalities(params["modalities_in"] || params["in"]),
+      modalities_in: parse_input_modalities(params),
       modalities_out: parse_modalities(params["modalities_out"] || params["out"]),
       changed_within_days: parse_changed_within(params["changed"]),
       min_context: parse_int(params["min_context"] || params["ctx"]),
@@ -495,6 +495,7 @@ defmodule PetalBoilerplate.Catalog.Filters do
           |> String.split(",", trim: true)
           |> Enum.reduce(%{}, fn cap_str, acc ->
             case safe_to_existing_atom(cap_str) do
+              :vision -> acc
               nil -> acc
               atom -> Map.put(acc, atom, true)
             end
@@ -516,6 +517,13 @@ defmodule PetalBoilerplate.Catalog.Filters do
     base_caps
     |> Map.merge(caps_from_string)
     |> Map.merge(caps_from_params)
+  end
+
+  defp parse_input_modalities(params) do
+    params
+    |> Map.get("modalities_in", params["in"])
+    |> parse_modalities()
+    |> maybe_add_legacy_vision(params)
   end
 
   defp parse_modalities(nil), do: MapSet.new()
@@ -542,6 +550,27 @@ defmodule PetalBoilerplate.Catalog.Filters do
       end
     end)
   end
+
+  defp maybe_add_legacy_vision(modalities, params) do
+    if legacy_vision_enabled?(params) do
+      MapSet.put(modalities, :image)
+    else
+      modalities
+    end
+  end
+
+  defp legacy_vision_enabled?(params) do
+    params["cap_vision"] == "true" or caps_include?(params["caps"], "vision")
+  end
+
+  defp caps_include?(caps, value) when is_binary(caps) do
+    caps
+    |> String.split(",", trim: true)
+    |> Enum.map(&String.trim/1)
+    |> Enum.any?(&(&1 == value))
+  end
+
+  defp caps_include?(_, _), do: false
 
   defp parse_int(nil), do: nil
   defp parse_int(""), do: nil

@@ -7,12 +7,7 @@ defmodule PetalBoilerplateWeb.HistoryControllerTest do
     def available?, do: true
 
     def meta do
-      {:ok,
-       %{
-         "from_commit" => "1111111111111111111111111111111111111111",
-         "to_commit" => "2222222222222222222222222222222222222222",
-         "generated_at" => "2026-02-27T00:00:00Z"
-       }}
+      {:ok, PetalBoilerplateWeb.HistoryControllerTest.history_meta()}
     end
 
     def timeline(_provider, _model_id, _limit) do
@@ -53,9 +48,8 @@ defmodule PetalBoilerplateWeb.HistoryControllerTest do
   defmodule HistoryEmptyStub do
     def available?, do: true
 
-    def meta do
-      {:ok, %{"from_commit" => "a", "to_commit" => "b", "generated_at" => "2026-02-27T00:00:00Z"}}
-    end
+    def meta,
+      do: {:ok, PetalBoilerplateWeb.HistoryControllerTest.history_meta("aaa1111", "bbb2222")}
 
     def timeline(_provider, _model_id, _limit), do: {:ok, []}
     def recent(_limit), do: {:ok, []}
@@ -65,9 +59,7 @@ defmodule PetalBoilerplateWeb.HistoryControllerTest do
     def available?, do: true
 
     def meta,
-      do:
-        {:ok,
-         %{"from_commit" => "a", "to_commit" => "b", "generated_at" => "2026-02-27T00:00:00Z"}}
+      do: {:ok, PetalBoilerplateWeb.HistoryControllerTest.history_meta("aaa1111", "bbb2222")}
 
     def timeline(_provider, _model_id, _limit), do: {:error, :invalid_limit}
     def recent(_limit), do: {:error, :invalid_limit}
@@ -97,8 +89,13 @@ defmodule PetalBoilerplateWeb.HistoryControllerTest do
              "recent" => true,
              "events" => events,
              "meta" => %{
-               "from_commit" => "1111111111111111111111111111111111111111",
-               "to_commit" => "2222222222222222222222222222222222222222",
+               "from_snapshot_id" =>
+                 "1111111111111111111111111111111111111111111111111111111111111111",
+               "to_snapshot_id" =>
+                 "2222222222222222222222222222222222222222222222222222222222222222",
+               "from_ref" => "1111111111111111111111111111111111111111111111111111111111111111",
+               "to_ref" => "2222222222222222222222222222222222222222222222222222222222222222",
+               "range_kind" => "snapshots",
                "generated_at" => "2026-02-27T00:00:00Z"
              }
            } = json_response(conn, 200)
@@ -131,7 +128,12 @@ defmodule PetalBoilerplateWeb.HistoryControllerTest do
              "schema_version" => 1,
              "model_key" => "openai:gpt-4o",
              "events" => [%{"type" => "changed"}],
-             "meta" => %{"from_commit" => _, "to_commit" => _, "generated_at" => _}
+             "meta" => %{
+               "from_snapshot_id" => _,
+               "to_snapshot_id" => _,
+               "range_kind" => "snapshots",
+               "generated_at" => _
+             }
            } = json_response(conn, 200)
   end
 
@@ -181,5 +183,19 @@ defmodule PetalBoilerplateWeb.HistoryControllerTest do
     |> String.split("/")
     |> Enum.map(&URI.encode/1)
     |> Enum.join("/")
+  end
+
+  def history_meta(
+        from_snapshot_id \\ "1111111111111111111111111111111111111111111111111111111111111111",
+        to_snapshot_id \\ "2222222222222222222222222222222222222222222222222222222222222222"
+      ) do
+    %{
+      "from_snapshot_id" => from_snapshot_id,
+      "to_snapshot_id" => to_snapshot_id,
+      "from_ref" => from_snapshot_id,
+      "to_ref" => to_snapshot_id,
+      "range_kind" => "snapshots",
+      "generated_at" => "2026-02-27T00:00:00Z"
+    }
   end
 end

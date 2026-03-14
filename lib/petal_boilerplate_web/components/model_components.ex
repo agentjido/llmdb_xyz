@@ -261,6 +261,22 @@ defmodule PetalBoilerplateWeb.ModelComponents do
             </.filter_dropdown>
 
             <.filter_dropdown
+              id="filter-modalities-in"
+              label={"Input #{modality_count_label(@filters.modalities_in)}"}
+              active={MapSet.size(@filters.modalities_in) > 0}
+            >
+              <.modalities_filter_content filters={@filters} direction={:input} />
+            </.filter_dropdown>
+
+            <.filter_dropdown
+              id="filter-modalities-out"
+              label={"Output #{modality_count_label(@filters.modalities_out)}"}
+              active={MapSet.size(@filters.modalities_out) > 0}
+            >
+              <.modalities_filter_content filters={@filters} direction={:output} />
+            </.filter_dropdown>
+
+            <.filter_dropdown
               id="filter-context"
               label={"Context #{context_label(@filters)}"}
               active={@filters.min_context != nil}
@@ -468,7 +484,6 @@ defmodule PetalBoilerplateWeb.ModelComponents do
       {:chat, "Chat"},
       {:tools, "Tools"},
       {:streaming_text, "Streaming"},
-      {:vision, "Vision"},
       {:reasoning, "Reasoning"},
       {:embeddings, "Embeddings"},
       {:json_native, "JSON Output"}
@@ -495,6 +510,59 @@ defmodule PetalBoilerplateWeb.ModelComponents do
               style="border-color: hsl(var(--border));"
             />
             <span class="text-sm">{cap_label}</span>
+          </label>
+        <% end %>
+      </form>
+    </div>
+    """
+  end
+
+  @input_modality_options [
+    {:text, "Text"},
+    {:image, "Image"},
+    {:file, "File"},
+    {:pdf, "PDF"},
+    {:audio, "Audio"},
+    {:video, "Video"}
+  ]
+
+  @output_modality_options [
+    {:text, "Text"},
+    {:image, "Image"},
+    {:audio, "Audio"},
+    {:video, "Video"},
+    {:embedding, "Embeddings"}
+  ]
+
+  attr :filters, :map, required: true
+  attr :direction, :atom, values: [:input, :output], required: true
+
+  defp modalities_filter_content(assigns) do
+    assigns =
+      assigns
+      |> assign(:param_key, modality_param_key(assigns.direction))
+      |> assign(:selected_modalities, selected_modalities(assigns.filters, assigns.direction))
+      |> assign(:modality_options, modality_options(assigns.direction))
+
+    ~H"""
+    <div class="w-48 p-2">
+      <form phx-change="filter">
+        <%= for {modality_key, label} <- @modality_options do %>
+          <label
+            class="flex items-center gap-2 cursor-pointer rounded px-2 py-1 hover:opacity-80"
+            style="background-color: transparent;"
+            onmouseover="this.style.backgroundColor='hsl(var(--accent))'"
+            onmouseout="this.style.backgroundColor='transparent'"
+          >
+            <input
+              type="checkbox"
+              name={"#{@param_key}[#{modality_key}]"}
+              value="true"
+              checked={MapSet.member?(@selected_modalities, modality_key)}
+              class="rounded"
+              style="border-color: hsl(var(--border));"
+            />
+            <span class="text-sm">{label}</span>
           </label>
         <% end %>
       </form>
@@ -583,6 +651,11 @@ defmodule PetalBoilerplateWeb.ModelComponents do
     if count > 0, do: "(#{count})", else: ""
   end
 
+  defp modality_count_label(modalities) do
+    count = MapSet.size(modalities)
+    if count > 0, do: "(#{count})", else: ""
+  end
+
   defp context_label(filters) do
     if filters.min_context && filters.min_context > 0 do
       "(>#{div(filters.min_context, 1000)}K)"
@@ -619,7 +692,7 @@ defmodule PetalBoilerplateWeb.ModelComponents do
 
   defp has_capability_filters?(capabilities) do
     Enum.any?(
-      [:chat, :tools, :vision, :reasoning, :embeddings, :json_native, :streaming_text],
+      [:chat, :tools, :reasoning, :embeddings, :json_native, :streaming_text],
       fn cap ->
         get_capability_filter(capabilities, cap)
       end
@@ -677,6 +750,7 @@ defmodule PetalBoilerplateWeb.ModelComponents do
       chips ++
         (filters.modalities_in
          |> MapSet.to_list()
+         |> Enum.sort_by(&modality_sort_key/1)
          |> Enum.map(fn mod ->
            %{label: "In: #{mod_label(mod)}", kind: "modality_in", value: to_string(mod)}
          end))
@@ -685,6 +759,7 @@ defmodule PetalBoilerplateWeb.ModelComponents do
       chips ++
         (filters.modalities_out
          |> MapSet.to_list()
+         |> Enum.sort_by(&modality_sort_key/1)
          |> Enum.map(fn mod ->
            %{label: "Out: #{mod_label(mod)}", kind: "modality_out", value: to_string(mod)}
          end))
@@ -781,9 +856,34 @@ defmodule PetalBoilerplateWeb.ModelComponents do
     case mod do
       :text -> "Text"
       :image -> "Image"
+      :file -> "File"
+      :pdf -> "PDF"
       :audio -> "Audio"
       :video -> "Video"
+      :embedding -> "Embeddings"
       other -> to_string(other) |> String.capitalize()
+    end
+  end
+
+  defp modality_options(:input), do: @input_modality_options
+  defp modality_options(:output), do: @output_modality_options
+
+  defp modality_param_key(:input), do: "modalities_in"
+  defp modality_param_key(:output), do: "modalities_out"
+
+  defp selected_modalities(filters, :input), do: filters.modalities_in
+  defp selected_modalities(filters, :output), do: filters.modalities_out
+
+  defp modality_sort_key(modality) do
+    case modality do
+      :text -> 0
+      :image -> 1
+      :file -> 2
+      :pdf -> 3
+      :audio -> 4
+      :video -> 5
+      :embedding -> 6
+      _ -> 99
     end
   end
 
@@ -796,12 +896,7 @@ defmodule PetalBoilerplateWeb.ModelComponents do
   end
 
   defp active_filter_count(filters) when is_map(filters) do
-    count = 0
-    count = if MapSet.size(filters.provider_ids) > 0, do: count + 1, else: count
-    count = if is_integer(filters.changed_within_days), do: count + 1, else: count
-    count = if filters.min_context && filters.min_context > 0, do: count + 1, else: count
-    count = if filters.max_cost_in && filters.max_cost_in < 100, do: count + 1, else: count
-    count
+    Catalog.active_filter_count(filters)
   end
 
   # =============================================================================
@@ -833,107 +928,106 @@ defmodule PetalBoilerplateWeb.ModelComponents do
             <.sortable_header field={:cost_in} label="In/Out $/M" sort={@sort} align="right" />
           </tr>
         </thead>
-        <tbody id="models-table-body" phx-update="stream">
-          <%= if @total == 0 do %>
-            <tr id="no-models-row">
-              <td
-                colspan="7"
-                class="px-3 py-12 text-center"
-                style="color: hsl(var(--muted-foreground));"
-              >
-                No models match your filters
-              </td>
-            </tr>
-          <% else %>
-            <tr
-              :for={{dom_id, model} <- @models}
-              id={dom_id}
-              phx-click="show_model"
-              phx-value-id={dom_id}
-              class="border-b cursor-pointer transition-colors"
-              style={"border-color: hsl(var(--table-border)); #{if MapSet.member?(@selected_ids, dom_id), do: "background-color: hsl(var(--table-row-selected));", else: ""}"}
-              onmouseover={
-                if !MapSet.member?(@selected_ids, dom_id),
-                  do: "this.style.backgroundColor='hsl(var(--table-row-hover))'"
-              }
-              onmouseout={
-                if !MapSet.member?(@selected_ids, dom_id),
-                  do: "this.style.backgroundColor='transparent'"
-              }
+        <tbody :if={@total == 0} id="models-table-empty-body">
+          <tr id="no-models-row">
+            <td
+              colspan="7"
+              class="px-3 py-12 text-center"
+              style="color: hsl(var(--muted-foreground));"
             >
-              <td class="px-3 py-2" phx-click="toggle_select" phx-value-id={dom_id}>
-                <input
-                  type="checkbox"
-                  checked={MapSet.member?(@selected_ids, dom_id)}
-                  disabled={!MapSet.member?(@selected_ids, dom_id) && !@can_add_more}
-                  class="rounded"
-                  style="border-color: hsl(var(--border));"
-                  onclick="event.stopPropagation()"
-                />
-              </td>
-              <td class="px-3 py-2" style="color: hsl(var(--muted-foreground));">
-                {model.provider}
-              </td>
-              <td class="px-3 py-2">
-                <div class="flex items-center gap-2">
-                  <div>
-                    <div class="font-medium">{model.name}</div>
-                    <div class="text-xs font-mono" style="color: hsl(var(--muted-foreground));">
-                      {model.model_id}
-                      <span :if={model.__last_changed_at}>
-                        {" • Updated "}
-                        {String.slice(model.__last_changed_at, 0, 10)}
-                      </span>
-                    </div>
-                  </div>
-                  <%= if model.deprecated || lifecycle_status(model) != "active" do %>
-                    <span
-                      class="text-[10px] px-1 py-0 rounded"
-                      style="background-color: hsl(var(--destructive) / 0.1); color: hsl(var(--destructive));"
-                    >
-                      {lifecycle_label(model)}
+              No models match your filters
+            </td>
+          </tr>
+        </tbody>
+        <tbody :if={@total > 0} id="models-table-body" phx-update="stream">
+          <tr
+            :for={{dom_id, model} <- @models}
+            id={dom_id}
+            phx-click="show_model"
+            phx-value-id={dom_id}
+            class="border-b cursor-pointer transition-colors"
+            style={"border-color: hsl(var(--table-border)); #{if MapSet.member?(@selected_ids, dom_id), do: "background-color: hsl(var(--table-row-selected));", else: ""}"}
+            onmouseover={
+              if !MapSet.member?(@selected_ids, dom_id),
+                do: "this.style.backgroundColor='hsl(var(--table-row-hover))'"
+            }
+            onmouseout={
+              if !MapSet.member?(@selected_ids, dom_id),
+                do: "this.style.backgroundColor='transparent'"
+            }
+          >
+            <td class="px-3 py-2" phx-click="toggle_select" phx-value-id={dom_id}>
+              <input
+                type="checkbox"
+                checked={MapSet.member?(@selected_ids, dom_id)}
+                disabled={!MapSet.member?(@selected_ids, dom_id) && !@can_add_more}
+                class="rounded"
+                style="border-color: hsl(var(--border));"
+                onclick="event.stopPropagation()"
+              />
+            </td>
+            <td class="px-3 py-2" style="color: hsl(var(--muted-foreground));">
+              {model.provider}
+            </td>
+            <td class="px-3 py-2">
+              <div class="flex items-center gap-2">
+                <div>
+                  <div class="font-medium">{model.name}</div>
+                  <div class="text-xs font-mono" style="color: hsl(var(--muted-foreground));">
+                    {model.model_id}
+                    <span :if={model.__last_changed_at}>
+                      {" • Updated "}
+                      {String.slice(model.__last_changed_at, 0, 10)}
                     </span>
-                  <% end %>
+                  </div>
                 </div>
-              </td>
-              <td class="px-3 py-2">
-                <.modality_badges model={model} />
-              </td>
-              <td class="px-3 py-2">
-                <div class="flex flex-wrap gap-1">
-                  <.capability_badge
-                    :if={get_in(model.capabilities, [:reasoning, :enabled])}
-                    capability={:reasoning}
-                    compact
-                  />
-                  <.capability_badge
-                    :if={get_in(model.capabilities, [:tools, :enabled])}
-                    capability={:tools}
-                    compact
-                  />
-                  <.capability_badge :if={has_vision?(model)} capability={:vision} compact />
-                  <.capability_badge
-                    :if={embeddings_enabled?(model.capabilities)}
-                    capability={:embeddings}
-                    compact
-                  />
-                  <.capability_badge
-                    :if={get_in(model.capabilities, [:json, :native])}
-                    capability={:json_output}
-                    compact
-                  />
-                </div>
-              </td>
-              <td class="px-3 py-2 text-right font-mono text-xs">
-                {ModelLive.format_number(get_in(model.limits, [:context]))}
-              </td>
-              <td class="px-3 py-2 text-right font-mono text-xs">
-                {ModelLive.format_cost(get_in(model.cost, [:input]))}/{ModelLive.format_cost(
-                  get_in(model.cost, [:output])
-                )}
-              </td>
-            </tr>
-          <% end %>
+                <%= if model.deprecated || lifecycle_status(model) != "active" do %>
+                  <span
+                    class="text-[10px] px-1 py-0 rounded"
+                    style="background-color: hsl(var(--destructive) / 0.1); color: hsl(var(--destructive));"
+                  >
+                    {lifecycle_label(model)}
+                  </span>
+                <% end %>
+              </div>
+            </td>
+            <td class="px-3 py-2">
+              <.modality_badges model={model} />
+            </td>
+            <td class="px-3 py-2">
+              <div class="flex flex-wrap gap-1">
+                <.capability_badge
+                  :if={get_in(model.capabilities, [:reasoning, :enabled])}
+                  capability={:reasoning}
+                  compact
+                />
+                <.capability_badge
+                  :if={get_in(model.capabilities, [:tools, :enabled])}
+                  capability={:tools}
+                  compact
+                />
+                <.capability_badge :if={has_vision?(model)} capability={:vision} compact />
+                <.capability_badge
+                  :if={embeddings_enabled?(model.capabilities)}
+                  capability={:embeddings}
+                  compact
+                />
+                <.capability_badge
+                  :if={get_in(model.capabilities, [:json, :native])}
+                  capability={:json_output}
+                  compact
+                />
+              </div>
+            </td>
+            <td class="px-3 py-2 text-right font-mono text-xs">
+              {ModelLive.format_number(get_in(model.limits, [:context]))}
+            </td>
+            <td class="px-3 py-2 text-right font-mono text-xs">
+              {ModelLive.format_cost(get_in(model.cost, [:input]))}/{ModelLive.format_cost(
+                get_in(model.cost, [:output])
+              )}
+            </td>
+          </tr>
         </tbody>
       </table>
 
@@ -1806,14 +1900,31 @@ defmodule PetalBoilerplateWeb.ModelComponents do
   end
 
   defp history_meta_summary(meta) do
-    from_commit = map_get(meta, "from_commit", :from_commit)
-    to_commit = map_get(meta, "to_commit", :to_commit)
+    range_kind =
+      map_get(meta, "range_kind", :range_kind) ||
+        if(
+          is_binary(map_get(meta, "from_snapshot_id", :from_snapshot_id)) and
+            is_binary(map_get(meta, "to_snapshot_id", :to_snapshot_id)),
+          do: "snapshots",
+          else: "commits"
+        )
+
+    from_ref =
+      map_get(meta, "from_ref", :from_ref) ||
+        map_get(meta, "from_snapshot_id", :from_snapshot_id) ||
+        map_get(meta, "from_commit", :from_commit)
+
+    to_ref =
+      map_get(meta, "to_ref", :to_ref) ||
+        map_get(meta, "to_snapshot_id", :to_snapshot_id) ||
+        map_get(meta, "to_commit", :to_commit)
+
     generated_at = map_get(meta, "generated_at", :generated_at)
 
-    commit_summary =
+    range_summary =
       cond do
-        is_binary(from_commit) and is_binary(to_commit) ->
-          "commits #{short_sha(from_commit)} -> #{short_sha(to_commit)}"
+        is_binary(from_ref) and is_binary(to_ref) ->
+          "#{range_kind || "history"} #{short_sha(from_ref)} -> #{short_sha(to_ref)}"
 
         true ->
           nil
@@ -1824,7 +1935,7 @@ defmodule PetalBoilerplateWeb.ModelComponents do
         "generated #{String.slice(generated_at, 0, 19)}"
       end
 
-    [commit_summary, generated_summary]
+    [range_summary, generated_summary]
     |> Enum.reject(&is_nil/1)
     |> Enum.join(" • ")
   end

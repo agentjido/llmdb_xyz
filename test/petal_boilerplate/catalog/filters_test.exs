@@ -66,6 +66,24 @@ defmodule PetalBoilerplate.Catalog.FiltersTest do
       assert filters.capabilities.chat == true
       assert filters.capabilities.tools == true
     end
+
+    test "parses input and output modalities" do
+      filters =
+        Filters.from_params(%{
+          "modalities_in" => %{"image" => "true", "pdf" => "true"},
+          "modalities_out" => %{"audio" => "true", "embedding" => "true"}
+        })
+
+      assert filters.modalities_in == MapSet.new([:image, :pdf])
+      assert filters.modalities_out == MapSet.new([:audio, :embedding])
+    end
+
+    test "maps legacy vision params to image input modality" do
+      filters = Filters.from_params(%{"cap_vision" => "true", "caps" => "vision"})
+
+      assert filters.modalities_in == MapSet.new([:image])
+      refute Map.get(filters.capabilities, :vision, false)
+    end
   end
 
   describe "to_params/1" do
@@ -104,6 +122,23 @@ defmodule PetalBoilerplate.Catalog.FiltersTest do
       params = Filters.to_params(filters)
 
       assert params["cost"] == 1.0
+    end
+
+    test "serializes input and output modalities" do
+      filters = %{
+        Filters.new()
+        | modalities_in: MapSet.new([:image, :pdf]),
+          modalities_out: MapSet.new([:audio, :embedding])
+      }
+
+      params = Filters.to_params(filters)
+
+      assert is_binary(params["in"])
+      assert String.contains?(params["in"], "image")
+      assert String.contains?(params["in"], "pdf")
+      assert is_binary(params["out"])
+      assert String.contains?(params["out"], "audio")
+      assert String.contains?(params["out"], "embedding")
     end
   end
 
@@ -288,6 +323,8 @@ defmodule PetalBoilerplate.Catalog.FiltersTest do
       original = %{
         "q" => "search term",
         "providers" => "openai,anthropic",
+        "in" => "image,pdf",
+        "out" => "audio,embedding",
         "ctx" => "100000",
         "cost" => "1.5",
         "cap_tools" => "true",
@@ -301,6 +338,8 @@ defmodule PetalBoilerplate.Catalog.FiltersTest do
       assert filters1.search == filters2.search
       assert filters1.min_context == filters2.min_context
       assert filters1.max_cost_in == filters2.max_cost_in
+      assert filters1.modalities_in == filters2.modalities_in
+      assert filters1.modalities_out == filters2.modalities_out
       assert filters1.capabilities.tools == filters2.capabilities.tools
       assert filters1.capabilities.chat == filters2.capabilities.chat
     end
