@@ -14,5 +14,10 @@ defmodule PetalBoilerplate.HistorySmokeTest do
     meta_path = Application.app_dir(:llm_db, "priv/llm_db/history/meta.json")
     assert File.exists?(meta_path)
     assert LLMDB.History.available?()
+    assert {:ok, meta} = PetalBoilerplate.History.meta()
+    assert is_binary(meta["generated_at"])
+    assert meta["range_kind"] in ["commits", "snapshots"]
+    assert is_binary(meta["from_ref"])
+    assert is_binary(meta["to_ref"])
   end
 end
