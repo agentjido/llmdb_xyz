@@ -10,6 +10,7 @@ swap_size_mb = 512
 
 [vm]
 size = 'shared-cpu-2x'
+memory = 1024
 
 [build]
 
@@ -39,8 +40,8 @@ processes = ['app']
 
 [http_service.concurrency]
 type = 'connections'
-hard_limit = 1000
-soft_limit = 1000
+hard_limit = 100
+soft_limit = 50
 
 [[http_service.checks]]
 grace_period = "30s"

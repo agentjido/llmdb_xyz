@@ -3,6 +3,7 @@ defmodule PetalBoilerplateWeb.Router do
 
   pipeline :browser do
     plug :accepts, ["html"]
+    plug PetalBoilerplateWeb.Plug.RequestAudit
     plug :fetch_session
     plug :fetch_live_flash
     plug :put_root_layout, {PetalBoilerplateWeb.Layouts, :root}
@@ -12,6 +13,7 @@ defmodule PetalBoilerplateWeb.Router do
 
   pipeline :api do
     plug :accepts, ["json"]
+    plug PetalBoilerplateWeb.Plug.RequestAudit
   end
 
   scope "/", PetalBoilerplateWeb do

@@ -19,6 +19,9 @@ fi
 
 export LANG='en_US.UTF-8'
 export LC_ALL='en_US.UTF-8'
+export XDG_CACHE_HOME="${XDG_CACHE_HOME:-/tmp/xdg-cache}"
+
+mkdir -p "${XDG_CACHE_HOME}/fontconfig"
 
 echo "HOST NAME: $HOST_NAME"
 echo "ERL FLAGS: $ERL_AFLAGS"
@@ -26,6 +29,7 @@ echo "RELEASE_DISTRIBUTION: $RELEASE_DISTRIBUTION"
 echo "RELEASE_NODE: $RELEASE_NODE"
 echo "LANG: $LANG"
 echo "LC_ALL: $LC_ALL"
+echo "XDG_CACHE_HOME: $XDG_CACHE_HOME"
 echo -e "\n"
 
 exec "$@"

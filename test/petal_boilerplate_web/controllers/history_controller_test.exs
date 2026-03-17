@@ -1,6 +1,8 @@
 defmodule PetalBoilerplateWeb.HistoryControllerTest do
   use PetalBoilerplateWeb.ConnCase, async: false
 
+  import ExUnit.CaptureLog
+
   alias PetalBoilerplate.Catalog
 
   defmodule HistoryOkStub do
@@ -83,6 +85,7 @@ defmodule PetalBoilerplateWeb.HistoryControllerTest do
     Application.put_env(:petal_boilerplate, :history_module, HistoryOkStub)
 
     conn = get(conn, "/api/history/recent?limit=50")
+    assert get_resp_header(conn, "x-robots-tag") == ["noindex"]
 
     assert %{
              "schema_version" => 1,
@@ -123,6 +126,7 @@ defmodule PetalBoilerplateWeb.HistoryControllerTest do
     Application.put_env(:petal_boilerplate, :history_module, HistoryOkStub)
 
     conn = get(conn, "/api/history/openai/gpt-4o?limit=200")
+    assert get_resp_header(conn, "x-robots-tag") == ["noindex"]
 
     assert %{
              "schema_version" => 1,
@@ -176,6 +180,26 @@ defmodule PetalBoilerplateWeb.HistoryControllerTest do
     conn = get(conn, "/api/history/openai/gpt-4o")
 
     assert %{"error" => "history_unavailable"} = json_response(conn, 503)
+  end
+
+  test "request audit plug emits attribution for history paths" do
+    previous_level = Logger.level()
+    Logger.configure(level: :info)
+    on_exit(fn -> Logger.configure(level: previous_level) end)
+
+    log =
+      capture_log([level: :info], fn ->
+        Plug.Test.conn(:get, "/api/history/recent?limit=50")
+        |> put_req_header("user-agent", "ReqLLMTest/1.0")
+        |> put_req_header("x-forwarded-for", "203.0.113.7")
+        |> PetalBoilerplateWeb.Plug.RequestAudit.call([])
+        |> send_resp(200, "")
+      end)
+
+    assert log =~ "request_audit"
+    assert log =~ "/api/history/recent"
+    assert log =~ "ReqLLMTest/1.0"
+    assert log =~ "203.0.113.7"
   end
 
   defp encode_model_id(model_id) do

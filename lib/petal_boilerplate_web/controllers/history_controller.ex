@@ -6,6 +6,8 @@ defmodule PetalBoilerplateWeb.HistoryController do
   @default_model_limit 200
   @default_recent_limit 50
 
+  plug :put_noindex_header
+
   def model(conn, %{"provider" => provider, "id" => id_parts} = params) do
     model_id = join_model_id(id_parts)
     model_key = "#{provider}:#{model_id}"
@@ -89,5 +91,9 @@ defmodule PetalBoilerplateWeb.HistoryController do
 
   defp history_module do
     Application.get_env(:petal_boilerplate, :history_module, PetalBoilerplate.History)
+  end
+
+  defp put_noindex_header(conn, _opts) do
+    put_resp_header(conn, "x-robots-tag", "noindex")
   end
 end

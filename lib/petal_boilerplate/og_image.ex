@@ -13,7 +13,10 @@ defmodule PetalBoilerplate.OGImage do
   @ets_table :og_image_cache
   @image_width 1200
   @image_height 630
-  @cache_ttl_ms :timer.hours(24)
+  @default_cache_key "default"
+  @static_ttl_ms :timer.hours(24)
+  @model_ttl_ms :timer.hours(1)
+  @max_model_entries 250
 
   # Client API
 
@@ -26,26 +29,26 @@ defmodule PetalBoilerplate.OGImage do
   Returns {:ok, png_binary} or {:error, reason}.
   """
   def get_image(:default) do
-    get_cached_or_generate("default", fn -> generate_default_image() end)
+    get_cached_or_generate(@default_cache_key, :static, fn -> generate_default_image() end)
   end
 
   def get_image(:home) do
-    get_cached_or_generate("home", fn -> generate_home_image() end)
+    get_cached_or_generate("home", :static, fn -> generate_home_image() end)
   end
 
   def get_image(:about) do
-    get_cached_or_generate("about", fn -> generate_about_image() end)
+    get_cached_or_generate("about", :static, fn -> generate_about_image() end)
   end
 
   def get_image({:model, provider, model_id}) do
-    cache_key = "model:#{provider}:#{model_id}"
+    case Catalog.get_model(provider, model_id) do
+      nil ->
+        fallback_to_default()
 
-    get_cached_or_generate(cache_key, fn ->
-      case Catalog.find_model(provider, model_id) do
-        nil -> generate_not_found_image()
-        model -> generate_model_image(model)
-      end
-    end)
+      model ->
+        cache_key = "model:#{provider}:#{model_id}"
+        get_cached_or_generate(cache_key, :model, fn -> generate_model_image(model) end)
+    end
   end
 
   @doc """
@@ -71,19 +74,21 @@ defmodule PetalBoilerplate.OGImage do
 
   # Private functions
 
-  defp get_cached_or_generate(cache_key, generator_fn) do
+  defp get_cached_or_generate(cache_key, cache_kind, generator_fn) do
     now = System.system_time(:millisecond)
 
-    case :ets.lookup(@ets_table, cache_key) do
-      [{^cache_key, png_data, expires_at}] when expires_at > now ->
+    case lookup_cached_png(cache_key, now) do
+      {:ok, png_data} ->
         {:ok, png_data}
 
-      _ ->
+      :miss ->
         case generator_fn.() do
           {:ok, png_data} ->
-            expires_at = now + @cache_ttl_ms
-            :ets.insert(@ets_table, {cache_key, png_data, expires_at})
+            cache_entry(cache_key, cache_kind, png_data, now)
             {:ok, png_data}
+
+          {:error, _reason} when cache_kind == :model ->
+            fallback_to_default()
 
           error ->
             error
@@ -111,11 +116,6 @@ defmodule PetalBoilerplate.OGImage do
     render_svg_to_png(svg)
   end
 
-  defp generate_not_found_image do
-    svg = not_found_svg()
-    render_svg_to_png(svg)
-  end
-
   defp render_svg_to_png(svg) do
     try do
       case Image.from_svg(svg) do
@@ -128,6 +128,108 @@ defmodule PetalBoilerplate.OGImage do
     rescue
       e -> {:error, e}
     end
+  end
+
+  defp lookup_cached_png(cache_key, now) do
+    case :ets.lookup(@ets_table, cache_key) do
+      [{^cache_key, cache_kind, png_data, inserted_at, _last_access_at, expires_at}]
+      when expires_at > now ->
+        maybe_touch_cache_entry(cache_key, cache_kind, png_data, inserted_at, expires_at, now)
+        {:ok, png_data}
+
+      [{^cache_key, _cache_kind, _png_data, _inserted_at, _last_access_at, _expires_at}] ->
+        :ets.delete(@ets_table, cache_key)
+        :miss
+
+      [] ->
+        :miss
+    end
+  end
+
+  defp maybe_touch_cache_entry(cache_key, :model, png_data, inserted_at, expires_at, now) do
+    :ets.insert(@ets_table, {cache_key, :model, png_data, inserted_at, now, expires_at})
+  end
+
+  defp maybe_touch_cache_entry(
+         _cache_key,
+         _cache_kind,
+         _png_data,
+         _inserted_at,
+         _expires_at,
+         _now
+       ),
+       do: :ok
+
+  defp cache_entry(cache_key, :static, png_data, now) do
+    expires_at = now + @static_ttl_ms
+    :ets.insert(@ets_table, {cache_key, :static, png_data, now, now, expires_at})
+  end
+
+  defp cache_entry(cache_key, :model, png_data, now) do
+    purge_expired_model_entries(now)
+    evict_model_entries_until_below_cap()
+
+    expires_at = now + @model_ttl_ms
+    :ets.insert(@ets_table, {cache_key, :model, png_data, now, now, expires_at})
+  end
+
+  defp purge_expired_model_entries(now) do
+    @ets_table
+    |> :ets.tab2list()
+    |> Enum.filter(fn
+      {_cache_key, :model, _png_data, _inserted_at, _last_access_at, expires_at} ->
+        expires_at <= now
+
+      _ ->
+        false
+    end)
+    |> Enum.each(fn {cache_key, :model, _png_data, _inserted_at, _last_access_at, _expires_at} ->
+      :ets.delete(@ets_table, cache_key)
+    end)
+  end
+
+  defp evict_model_entries_until_below_cap do
+    if model_cache_entry_count() >= @max_model_entries do
+      evict_oldest_model_entry()
+      evict_model_entries_until_below_cap()
+    else
+      :ok
+    end
+  end
+
+  defp evict_oldest_model_entry do
+    @ets_table
+    |> :ets.tab2list()
+    |> Enum.filter(fn
+      {_cache_key, :model, _png_data, _inserted_at, _last_access_at, _expires_at} -> true
+      _ -> false
+    end)
+    |> Enum.min_by(
+      fn {_cache_key, :model, _png_data, inserted_at, last_access_at, _expires_at} ->
+        {last_access_at, inserted_at}
+      end,
+      fn -> nil end
+    )
+    |> case do
+      {cache_key, :model, _png_data, _inserted_at, _last_access_at, _expires_at} ->
+        :ets.delete(@ets_table, cache_key)
+
+      nil ->
+        :ok
+    end
+  end
+
+  defp model_cache_entry_count do
+    @ets_table
+    |> :ets.tab2list()
+    |> Enum.count(fn
+      {_cache_key, :model, _png_data, _inserted_at, _last_access_at, _expires_at} -> true
+      _ -> false
+    end)
+  end
+
+  defp fallback_to_default do
+    get_image(:default)
   end
 
   # SVG Templates
@@ -161,7 +263,7 @@ defmodule PetalBoilerplate.OGImage do
   end
 
   defp home_svg do
-    model_count = length(Catalog.list_all_models())
+    model_count = Catalog.total_model_count()
     provider_count = length(Catalog.list_providers())
 
     """
@@ -351,36 +453,6 @@ defmodule PetalBoilerplate.OGImage do
             fill="#64748b" font-size="16"
             font-family="system-ui, -apple-system, sans-serif">
         llmdb.xyz/models/#{provider_slug}/#{svg_escape(to_string(model_id))}
-      </text>
-    </svg>
-    """
-  end
-
-  defp not_found_svg do
-    """
-    <svg xmlns="http://www.w3.org/2000/svg" width="#{@image_width}" height="#{@image_height}" viewBox="0 0 #{@image_width} #{@image_height}">
-      <defs>
-        <linearGradient id="bggrad" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stop-color="#1a1a2e"/>
-          <stop offset="50%" stop-color="#16213e"/>
-          <stop offset="100%" stop-color="#0f3460"/>
-        </linearGradient>
-      </defs>
-      <rect width="#{@image_width}" height="#{@image_height}" fill="url(#bggrad)"/>
-
-      <!-- Title -->
-      <text x="#{div(@image_width, 2)}" y="280" text-anchor="middle" fill="#ffffff" font-size="64" font-family="system-ui, -apple-system, sans-serif" font-weight="700">
-        Model Not Found
-      </text>
-
-      <!-- Subtitle -->
-      <text x="#{div(@image_width, 2)}" y="350" text-anchor="middle" fill="#94a3b8" font-size="28" font-family="system-ui, -apple-system, sans-serif">
-        The requested model could not be found
-      </text>
-
-      <!-- Footer -->
-      <text x="#{div(@image_width, 2)}" y="#{@image_height - 60}" text-anchor="middle" fill="#64748b" font-size="20" font-family="system-ui, -apple-system, sans-serif">
-        llmdb.xyz
       </text>
     </svg>
     """

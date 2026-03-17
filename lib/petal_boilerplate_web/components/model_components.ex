@@ -944,23 +944,23 @@ defmodule PetalBoilerplateWeb.ModelComponents do
             :for={{dom_id, model} <- @models}
             id={dom_id}
             phx-click="show_model"
-            phx-value-id={dom_id}
+            phx-value-id={model.id}
             class="border-b cursor-pointer transition-colors"
-            style={"border-color: hsl(var(--table-border)); #{if MapSet.member?(@selected_ids, dom_id), do: "background-color: hsl(var(--table-row-selected));", else: ""}"}
+            style={"border-color: hsl(var(--table-border)); #{if MapSet.member?(@selected_ids, model.id), do: "background-color: hsl(var(--table-row-selected));", else: ""}"}
             onmouseover={
-              if !MapSet.member?(@selected_ids, dom_id),
+              if !MapSet.member?(@selected_ids, model.id),
                 do: "this.style.backgroundColor='hsl(var(--table-row-hover))'"
             }
             onmouseout={
-              if !MapSet.member?(@selected_ids, dom_id),
+              if !MapSet.member?(@selected_ids, model.id),
                 do: "this.style.backgroundColor='transparent'"
             }
           >
-            <td class="px-3 py-2" phx-click="toggle_select" phx-value-id={dom_id}>
+            <td class="px-3 py-2" phx-click="toggle_select" phx-value-id={model.id}>
               <input
                 type="checkbox"
-                checked={MapSet.member?(@selected_ids, dom_id)}
-                disabled={!MapSet.member?(@selected_ids, dom_id) && !@can_add_more}
+                checked={MapSet.member?(@selected_ids, model.id)}
+                disabled={!MapSet.member?(@selected_ids, model.id) && !@can_add_more}
                 class="rounded"
                 style="border-color: hsl(var(--border));"
                 onclick="event.stopPropagation()"
@@ -1042,19 +1042,19 @@ defmodule PetalBoilerplateWeb.ModelComponents do
             id={"mobile-#{dom_id}"}
             class="p-3 transition-colors cursor-pointer"
             style={
-              if MapSet.member?(@selected_ids, dom_id),
+              if MapSet.member?(@selected_ids, model.id),
                 do: "background-color: hsl(var(--table-row-selected));",
                 else: ""
             }
             phx-click="show_model"
-            phx-value-id={dom_id}
+            phx-value-id={model.id}
           >
             <div class="flex items-start gap-3">
-              <div class="pt-0.5" phx-click="toggle_select" phx-value-id={dom_id}>
+              <div class="pt-0.5" phx-click="toggle_select" phx-value-id={model.id}>
                 <input
                   type="checkbox"
-                  checked={MapSet.member?(@selected_ids, dom_id)}
-                  disabled={!MapSet.member?(@selected_ids, dom_id) && !@can_add_more}
+                  checked={MapSet.member?(@selected_ids, model.id)}
+                  disabled={!MapSet.member?(@selected_ids, model.id) && !@can_add_more}
                   class="rounded"
                   style="border-color: hsl(var(--border));"
                   onclick="event.stopPropagation()"

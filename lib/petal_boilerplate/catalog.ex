@@ -5,12 +5,15 @@ defmodule PetalBoilerplate.Catalog do
   This module encapsulates all the business logic for working with the llm_db
   model catalog, including enrichment for fast filtering and sorting operations.
 
-  Models are cached in ETS after enrichment for fast access.
+  Models are stored in `:persistent_term` for shared read access, with ETS indexes
+  for direct model lookups.
   """
 
   alias PetalBoilerplate.Catalog.Filters
 
   @ets_table :catalog_models
+  @models_key {__MODULE__, :models}
+  @model_count_key {__MODULE__, :model_count}
   @default_page_size 50
 
   @capability_definitions [
@@ -57,14 +60,10 @@ defmodule PetalBoilerplate.Catalog do
   Call this at application startup.
   """
   def init_cache do
-    if :ets.whereis(@ets_table) == :undefined do
-      :ets.new(@ets_table, [:named_table, :set, :public, read_concurrency: true])
-    end
-
     raw_models = LLMDB.models()
     history_index = build_history_index()
     models = raw_models |> Enum.map(&enrich_model(&1, history_index))
-    :ets.insert(@ets_table, {:models, models})
+    store_models(models)
     :ok
   end
 
@@ -79,32 +78,47 @@ defmodule PetalBoilerplate.Catalog do
   Finds a single model by provider and model_id.
   Used for direct lookups (e.g., for OG meta tags on initial page load).
   """
+  def get_model(provider, model_id) do
+    lookup_index({:provider_model, to_string(provider), model_id})
+  end
+
+  @doc """
+  Finds a single model by its DOM id.
+  """
+  def get_model_by_dom_id(dom_id) do
+    lookup_index({:dom_id, dom_id})
+  end
+
   def find_model(provider, model_id) do
-    list_all_models()
-    |> Enum.find(fn m ->
-      to_string(m.provider) == provider && m.model_id == model_id
-    end)
+    get_model(provider, model_id)
   end
 
   @doc """
   Returns all models, enriched with computed fields for fast filtering.
-  Uses ETS cache if available, otherwise loads and caches.
+  Uses `:persistent_term` if available, otherwise loads and caches.
   """
   def list_all_models do
-    case :ets.whereis(@ets_table) do
+    case :persistent_term.get(@models_key, :undefined) do
       :undefined ->
         init_cache()
         list_all_models()
 
-      _table ->
-        case :ets.lookup(@ets_table, :models) do
-          [{:models, models}] ->
-            maybe_attach_history_metadata(models)
+      models ->
+        maybe_attach_history_metadata(models)
+    end
+  end
 
-          [] ->
-            init_cache()
-            list_all_models()
-        end
+  @doc """
+  Returns the total number of models in the catalog.
+  """
+  def total_model_count do
+    case :persistent_term.get(@model_count_key, :undefined) do
+      :undefined ->
+        init_cache()
+        total_model_count()
+
+      count ->
+        count
     end
   end
 
@@ -120,6 +134,15 @@ defmodule PetalBoilerplate.Catalog do
     all_models
     |> filter_models(filters)
     |> sort_models(sort)
+  end
+
+  @doc """
+  Filters, sorts, and paginates models from the shared catalog in a single step.
+  """
+  def query_models(filters, sort, page, page_size \\ @default_page_size) do
+    list_all_models()
+    |> list_models(filters, sort)
+    |> paginate(page, page_size)
   end
 
   @doc """
@@ -291,7 +314,7 @@ defmodule PetalBoilerplate.Catalog do
               |> Map.put(:__last_changed_epoch, Map.get(history_summary, :captured_at_epoch))
             end)
 
-          :ets.insert(@ets_table, {:models, refreshed_models})
+          store_models(refreshed_models)
           refreshed_models
 
         _ ->
@@ -461,6 +484,62 @@ defmodule PetalBoilerplate.Catalog do
 
   defp history_module do
     Application.get_env(:petal_boilerplate, :history_module, PetalBoilerplate.History)
+  end
+
+  defp store_models(models) do
+    ensure_lookup_table!()
+    :persistent_term.put(@models_key, models)
+    :persistent_term.put(@model_count_key, length(models))
+    rebuild_lookup_indexes(models)
+    :ok
+  end
+
+  defp rebuild_lookup_indexes(models) do
+    :ets.delete_all_objects(@ets_table)
+
+    lookup_entries =
+      Enum.flat_map(models, fn model ->
+        provider = Map.get(model, :__provider_str, to_string(model.provider))
+
+        [
+          {{:provider_model, provider, model.model_id}, model},
+          {{:dom_id, model.id}, model}
+        ]
+      end)
+
+    :ets.insert(@ets_table, lookup_entries)
+    :ok
+  end
+
+  defp ensure_lookup_table! do
+    if :ets.whereis(@ets_table) == :undefined do
+      :ets.new(@ets_table, [:named_table, :set, :public, read_concurrency: true])
+    end
+  end
+
+  defp lookup_index(key), do: lookup_index(key, false)
+
+  defp lookup_index(key, rebuilt?) do
+    ensure_lookup_table!()
+
+    case :ets.lookup(@ets_table, key) do
+      [{^key, model}] ->
+        model
+
+      [] ->
+        case :persistent_term.get(@models_key, :undefined) do
+          :undefined ->
+            init_cache()
+            lookup_index(key, true)
+
+          _models when rebuilt? ->
+            nil
+
+          models ->
+            rebuild_lookup_indexes(models)
+            lookup_index(key, true)
+        end
+    end
   end
 
   defp history_key(provider, model_id), do: to_string(provider) <> ":" <> model_id

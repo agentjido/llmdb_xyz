@@ -57,7 +57,8 @@ defmodule PetalBoilerplate.CatalogTest do
       }
     ])
 
-    :ets.insert(:catalog_models, {:models, stale_models})
+    :persistent_term.put({Catalog, :models}, stale_models)
+    :persistent_term.put({Catalog, :model_count}, length(stale_models))
 
     refreshed_model =
       Catalog.list_all_models()
@@ -67,6 +68,27 @@ defmodule PetalBoilerplate.CatalogTest do
 
     assert refreshed_model.__last_changed_at == captured_at
     assert is_integer(refreshed_model.__last_changed_epoch)
+  end
+
+  test "direct lookup returns models by provider/model_id and dom id" do
+    model = Catalog.list_all_models() |> List.first()
+    model_dom_id = model.id
+    model_id = model.model_id
+
+    assert %{id: ^model_dom_id} = Catalog.get_model(to_string(model.provider), model_id)
+    assert %{model_id: ^model_id} = Catalog.get_model_by_dom_id(model_dom_id)
+  end
+
+  test "query_models matches list_models plus paginate" do
+    filters = Catalog.default_filters()
+    sort = %{by: :recently_changed, dir: :desc}
+
+    expected =
+      Catalog.list_all_models()
+      |> Catalog.list_models(filters, sort)
+      |> Catalog.paginate(2)
+
+    assert Catalog.query_models(filters, sort, 2) == expected
   end
 
   test "list_models filters by required input and output modalities" do

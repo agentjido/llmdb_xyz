@@ -17,12 +17,7 @@ defmodule PetalBoilerplateWeb.ModelLive do
         str when is_binary(str) -> str
       end
 
-    model =
-      if socket.assigns.all_models == [] do
-        Catalog.find_model(provider, id)
-      else
-        find_model_by_provider_and_id(socket.assigns.all_models, provider, id)
-      end
+    model = Catalog.get_model(provider, id)
 
     {history_events, history_meta, history_available} = load_history(model, provider, id)
     history_api_url = if model, do: build_history_api_url(provider, id), else: nil
@@ -39,25 +34,13 @@ defmodule PetalBoilerplateWeb.ModelLive do
   end
 
   defp apply_action(socket, :index, params) do
-    if socket.assigns.all_models != [] do
-      filters = Filters.from_params(params)
-      sort = sort_from_params(params)
+    filters = Filters.from_params(params)
+    sort = sort_from_params(params)
 
-      socket
-      |> assign(selected_model: nil)
-      |> clear_history_assigns()
-      |> apply_filters(filters, sort: sort)
-    else
-      socket
-      |> assign(selected_model: nil)
-      |> clear_history_assigns()
-    end
-  end
-
-  defp find_model_by_provider_and_id(models, provider, id) do
-    Enum.find(models, fn m ->
-      to_string(m.provider) == provider && m.model_id == id
-    end)
+    socket
+    |> assign(selected_model: nil)
+    |> clear_history_assigns()
+    |> apply_filters(filters, sort: sort)
   end
 
   @sort_fields %{
@@ -77,17 +60,14 @@ defmodule PetalBoilerplateWeb.ModelLive do
     filters = Filters.from_params(params)
     sort = sort_from_params(params)
     providers = Catalog.list_providers()
-    all_models = Catalog.list_all_models()
-    filtered = Catalog.list_models(all_models, filters, sort)
-    {page_models, total, total_pages, page} = Catalog.paginate(filtered, 1)
+    {page_models, total, total_pages, page} = Catalog.query_models(filters, sort, 1)
 
     {:ok,
      socket
      |> assign_og_meta(:index, nil)
      |> assign(
        providers: providers,
-       all_models: all_models,
-       filtered_models: filtered,
+       catalog_total: Catalog.total_model_count(),
        filters: filters,
        sort: sort,
        total: total,
@@ -139,7 +119,7 @@ defmodule PetalBoilerplateWeb.ModelLive do
     page = String.to_integer(page_str)
 
     {page_models, total, total_pages, page} =
-      Catalog.paginate(socket.assigns.filtered_models, page)
+      Catalog.query_models(socket.assigns.filters, socket.assigns.sort, page)
 
     {:noreply,
      socket
@@ -149,11 +129,10 @@ defmodule PetalBoilerplateWeb.ModelLive do
 
   @impl true
   def handle_event("show_model", %{"id" => dom_id}, socket) do
-    model_id = String.replace_prefix(dom_id, "models-", "")
-    model = Enum.find(socket.assigns.filtered_models, fn m -> m.id == model_id end)
+    model = Catalog.get_model_by_dom_id(dom_id)
 
     if model do
-      path = "/models/#{URI.encode(to_string(model.provider))}/#{model.model_id}"
+      path = model_show_path(model)
       {:noreply, push_patch(socket, to: path)}
     else
       {:noreply, socket}
@@ -355,15 +334,14 @@ defmodule PetalBoilerplateWeb.ModelLive do
 
   defp apply_filters(socket, %Filters{} = filters, opts \\ []) do
     sort = Keyword.get(opts, :sort, socket.assigns.sort)
-    filtered = Catalog.list_models(socket.assigns.all_models, filters, sort)
-    {page_models, total, total_pages, page} = Catalog.paginate(filtered, 1)
+    page = Keyword.get(opts, :page, 1)
+    {page_models, total, total_pages, page} = Catalog.query_models(filters, sort, page)
 
     socket =
       socket
       |> assign(
         filters: filters,
         sort: sort,
-        filtered_models: filtered,
         total: total,
         page: page,
         total_pages: total_pages,
@@ -381,8 +359,10 @@ defmodule PetalBoilerplateWeb.ModelLive do
   end
 
   defp selected_models(assigns) do
-    ids = MapSet.to_list(assigns.selected_ids)
-    Enum.filter(assigns.all_models, &(&1.id in ids))
+    assigns.selected_ids
+    |> MapSet.to_list()
+    |> Enum.map(&Catalog.get_model_by_dom_id/1)
+    |> Enum.reject(&is_nil/1)
   end
 
   defp clear_history_assigns(socket) do
@@ -417,6 +397,18 @@ defmodule PetalBoilerplateWeb.ModelLive do
       |> Enum.join("/")
 
     "/api/history/#{encoded_provider}/#{encoded_model_id}?limit=200"
+  end
+
+  defp model_show_path(model) do
+    provider = URI.encode(to_string(model.provider))
+
+    encoded_model_id =
+      model.model_id
+      |> String.split("/")
+      |> Enum.map(&URI.encode/1)
+      |> Enum.join("/")
+
+    "/models/#{provider}/#{encoded_model_id}"
   end
 
   defp history_module do

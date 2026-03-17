@@ -253,7 +253,6 @@ defmodule PetalBoilerplateWeb.HistoryLive do
 
   defp load_history_feed(changed_within_days, event_type) do
     history = history_module()
-    model_lookup = build_model_lookup()
 
     with {:ok, events} <- history.recent(@history_limit),
          {:ok, meta} <- history.meta() do
@@ -261,7 +260,7 @@ defmodule PetalBoilerplateWeb.HistoryLive do
         events
         |> sort_events_desc()
         |> filter_events(changed_within_days, event_type)
-        |> Enum.map(&decorate_event(&1, model_lookup))
+        |> Enum.map(&decorate_event/1)
 
       {filtered_events, meta, true}
     else
@@ -269,17 +268,10 @@ defmodule PetalBoilerplateWeb.HistoryLive do
     end
   end
 
-  defp build_model_lookup do
-    Catalog.list_all_models()
-    |> Map.new(fn model ->
-      {"#{model.provider}:#{model.model_id}", model}
-    end)
-  end
-
-  defp decorate_event(event, model_lookup) do
+  defp decorate_event(event) do
     model_key = event_model_key(event)
     {provider, model_id} = split_model_key(model_key)
-    model = Map.get(model_lookup, model_key)
+    model = if provider && model_id, do: Catalog.get_model(provider, model_id), else: nil
 
     event
     |> Map.put("model_key", model_key)

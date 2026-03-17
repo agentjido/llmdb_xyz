@@ -10,6 +10,8 @@ defmodule PetalBoilerplateWeb.OGImageController do
 
   alias PetalBoilerplate.OGImage
 
+  plug :put_noindex_header
+
   def default(conn, _params) do
     serve_image(conn, OGImage.get_image(:default))
   end
@@ -35,20 +37,12 @@ defmodule PetalBoilerplateWeb.OGImageController do
   end
 
   defp serve_image(conn, {:error, _reason}) do
-    fallback_path =
-      Application.app_dir(:petal_boilerplate, "priv/static/images/og-default.png")
+    conn
+    |> put_resp_content_type("text/plain")
+    |> send_resp(500, "Error generating image")
+  end
 
-    case File.read(fallback_path) do
-      {:ok, png} ->
-        conn
-        |> put_resp_content_type("image/png")
-        |> put_resp_header("cache-control", "public, max-age=86400")
-        |> send_resp(200, png)
-
-      {:error, _} ->
-        conn
-        |> put_resp_content_type("text/plain")
-        |> send_resp(500, "Error generating image")
-    end
+  defp put_noindex_header(conn, _opts) do
+    put_resp_header(conn, "x-robots-tag", "noindex, noimageindex")
   end
 end
