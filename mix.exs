@@ -68,7 +68,7 @@ defmodule PetalBoilerplate.MixProject do
       {:jason, "~> 1.2"},
 
       # Domain
-      {:llm_db, git: "https://github.com/agentjido/llm_db.git", tag: "2026.3.1"},
+      {:llm_db, git: "https://github.com/agentjido/llm_db.git", tag: "2026.3.2"},
 
       # Dev & test
       {:phoenix_live_reload, "~> 1.6", only: [:dev, :test]},
