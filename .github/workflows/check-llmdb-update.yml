@@ -59,12 +59,46 @@ jobs:
           echo "tag=$locked" >> "$GITHUB_OUTPUT"
           echo "Locked llm_db tag: $locked"
 
-      - name: Get latest stable llm_db release tag from GitHub
+      - name: Get latest versioned llm_db release tag from GitHub
         id: upstream
         run: |
-          upstream=$(curl -fsSL https://api.github.com/repos/agentjido/llm_db/releases/latest | python3 -c 'import json,sys; print(json.load(sys.stdin)["tag_name"])')
+          upstream=$(
+            python3 - <<'PY'
+          import json
+          import re
+          import sys
+          import urllib.request
+
+          VERSION_TAG = re.compile(r"^\d+\.\d+\.\d+$")
+
+          with urllib.request.urlopen(
+              "https://api.github.com/repos/agentjido/llm_db/releases?per_page=100"
+          ) as response:
+              releases = json.load(response)
+
+          candidates = []
+
+          for release in releases:
+              tag = release.get("tag_name", "")
+
+              if release.get("draft") or release.get("prerelease"):
+                  continue
+
+              if VERSION_TAG.fullmatch(tag):
+                  candidates.append(tag)
+
+          if not candidates:
+              raise SystemExit("No versioned llm_db releases found")
+
+          def parse_version(tag: str) -> tuple[int, ...]:
+              return tuple(int(part) for part in tag.split("."))
+
+          print(max(candidates, key=parse_version))
+          PY
+          )
+
           echo "tag=$upstream" >> "$GITHUB_OUTPUT"
-          echo "Latest stable llm_db tag: $upstream"
+          echo "Latest versioned llm_db tag: $upstream"
 
       - name: Compare locked vs upstream tags
         id: compare
