@@ -5,6 +5,11 @@ on:
     branches:
       - main
 
+concurrency:
+  # Prevent overlapping prod deploys from racing on the same Fly machine.
+  group: deploy-fly-prod
+  cancel-in-progress: false
+
 jobs:
   deploy:
     name: Deploy
