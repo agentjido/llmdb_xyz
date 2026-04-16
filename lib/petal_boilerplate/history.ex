@@ -3,9 +3,39 @@ defmodule PetalBoilerplate.History do
   Wrapper around `LLMDB.History` with app-level defaults and limit validation.
   """
 
+  require Logger
+
   @default_timeline_limit 200
   @default_recent_limit 50
   @max_limit 500
+  @history_archive_name "petal_boilerplate-llm_db-history.tar.gz"
+
+  alias LLMDB.{History.Bundle, Snapshot, Snapshot.ReleaseStore}
+
+  @doc """
+  Configures a writable history directory and syncs the published bundle when needed.
+  """
+  def configure_runtime_bundle do
+    history_dir = history_dir()
+    Application.put_env(:llm_db, :history_dir, history_dir)
+
+    case ensure_local_bundle(history_dir) do
+      :ok ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("llm_db history bundle unavailable: #{inspect(reason)}")
+        :ok
+    end
+  end
+
+  @doc """
+  Returns the configured local history directory.
+  """
+  def history_dir do
+    System.get_env("LLMDB_HISTORY_DIR") ||
+      Path.join([System.tmp_dir!(), "petal_boilerplate", "llm_db", "history"])
+  end
 
   @doc """
   Returns whether runtime history artifacts are available.
@@ -99,5 +129,52 @@ defmodule PetalBoilerplate.History do
 
   defp map_get(map, string_key, atom_key) do
     Map.get(map, string_key) || Map.get(map, atom_key)
+  end
+
+  defp ensure_local_bundle(history_dir) do
+    with {:ok, snapshot_id} <- packaged_snapshot_id(),
+         true <- history_current?(history_dir, snapshot_id) do
+      :ok
+    else
+      false -> sync_history_bundle(history_dir)
+      {:error, _reason} = error -> error
+    end
+  end
+
+  defp packaged_snapshot_id do
+    case Snapshot.read(Snapshot.packaged_path()) do
+      {:ok, %{"snapshot_id" => snapshot_id}} when is_binary(snapshot_id) -> {:ok, snapshot_id}
+      {:ok, _snapshot} -> {:error, :missing_snapshot_id}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp history_current?(history_dir, snapshot_id) do
+    case Bundle.read_meta(history_dir) do
+      {:ok, %{"to_snapshot_id" => ^snapshot_id}} -> true
+      _ -> false
+    end
+  end
+
+  defp sync_history_bundle(history_dir) do
+    archive_path = Path.join(System.tmp_dir!(), @history_archive_name)
+
+    try do
+      with :ok <- ReleaseStore.download_history_archive(archive_path),
+           :ok <- replace_history_bundle(archive_path, history_dir) do
+        :ok
+      else
+        {:error, reason} ->
+          File.rm_rf(history_dir)
+          {:error, reason}
+      end
+    after
+      File.rm(archive_path)
+    end
+  end
+
+  defp replace_history_bundle(archive_path, history_dir) do
+    File.rm_rf(history_dir)
+    Bundle.install_archive(archive_path, history_dir)
   end
 end

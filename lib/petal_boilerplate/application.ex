@@ -13,6 +13,8 @@ defmodule PetalBoilerplate.Application do
       {:error, _} -> LLMDB.load_empty()
     end
 
+    PetalBoilerplate.History.configure_runtime_bundle()
+
     # Pre-warm the model cache for fast initial load
     PetalBoilerplate.Catalog.init_cache()
 

@@ -23,12 +23,12 @@ Add it to your project:
 ```elixir
 def deps do
   [
-    {:llm_db, "~> 2026.3"}
+    {:llm_db, "~> 2026.4"}
   ]
 end
 ```
 
-This site pins the latest GitHub release tag in [`mix.exs`](/Users/mhostetler/Source/ReqLLM/llmdb_xyz/mix.exs) so the bundled `priv/llm_db/history/**` artifacts are available at runtime.
+This site consumes the published Hex release in [`mix.exs`](/Users/mhostetler/Source/ReqLLM/llmdb_xyz/mix.exs), with the committed lockfile pinning the exact `llm_db` build. On startup, the app syncs the matching published history bundle into a local cache so the history UI and API stay available.
 
 ### Example Usage
 
