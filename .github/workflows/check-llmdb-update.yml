@@ -15,7 +15,6 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      MIX_ENV: dev
       ELIXIR_VERSION: "1.18.2"
       OTP_VERSION: "27.2.1"
 
@@ -35,13 +34,18 @@ jobs:
           key: deps-${{ runner.os }}-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-${{ hashFiles('mix.lock') }}
           restore-keys: deps-${{ runner.os }}-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-
 
-      - name: Get locked llm_db release tag from mix.lock
+      - name: Get locked llm_db version from mix.lock
         id: locked
         run: |
           locked=$(elixir -e '
-          {lock, _binding} = Code.eval_file("mix.lock")
+          Application.ensure_all_started(:mix)
+          lock = Mix.Dep.Lock.read()
 
           case lock[:llm_db] do
+            {:hex, :llm_db, version, _checksum, _managers, _deps, _repo, _hash}
+            when is_binary(version) ->
+              IO.puts(version)
+
             {:git, _url, _ref, opts} ->
               tag = Keyword.get(opts, :tag)
 
@@ -52,63 +56,47 @@ jobs:
               end
 
             other ->
-              raise "Expected llm_db git dependency in mix.lock, got: #{inspect(other)}"
+              raise "Expected llm_db hex or git dependency in mix.lock, got: #{inspect(other)}"
           end
           ')
 
-          echo "tag=$locked" >> "$GITHUB_OUTPUT"
-          echo "Locked llm_db tag: $locked"
+          echo "version=$locked" >> "$GITHUB_OUTPUT"
+          echo "Locked llm_db version: $locked"
 
-      - name: Get latest versioned llm_db release tag from GitHub
+      - name: Get latest llm_db release version from Hex
         id: upstream
         run: |
           upstream=$(
             python3 - <<'PY'
           import json
-          import re
-          import sys
           import urllib.request
 
-          VERSION_TAG = re.compile(r"^\d+\.\d+\.\d+$")
-
           with urllib.request.urlopen(
-              "https://api.github.com/repos/agentjido/llm_db/releases?per_page=100"
+              "https://hex.pm/api/packages/llm_db"
           ) as response:
-              releases = json.load(response)
+              package = json.load(response)
 
-          candidates = []
+          version = package.get("latest_stable_version") or package.get("latest_version")
 
-          for release in releases:
-              tag = release.get("tag_name", "")
+          if not version:
+              raise SystemExit("No stable llm_db version found on Hex")
 
-              if release.get("draft") or release.get("prerelease"):
-                  continue
-
-              if VERSION_TAG.fullmatch(tag):
-                  candidates.append(tag)
-
-          if not candidates:
-              raise SystemExit("No versioned llm_db releases found")
-
-          def parse_version(tag: str) -> tuple[int, ...]:
-              return tuple(int(part) for part in tag.split("."))
-
-          print(max(candidates, key=parse_version))
+          print(version)
           PY
           )
 
-          echo "tag=$upstream" >> "$GITHUB_OUTPUT"
-          echo "Latest versioned llm_db tag: $upstream"
+          echo "version=$upstream" >> "$GITHUB_OUTPUT"
+          echo "Latest llm_db version: $upstream"
 
-      - name: Compare locked vs upstream tags
+      - name: Compare locked vs upstream versions
         id: compare
         env:
-          LOCKED_TAG: ${{ steps.locked.outputs.tag }}
-          UPSTREAM_TAG: ${{ steps.upstream.outputs.tag }}
+          LOCKED_VERSION: ${{ steps.locked.outputs.version }}
+          UPSTREAM_VERSION: ${{ steps.upstream.outputs.version }}
         run: |
           comparison=$(elixir -e '
-          locked = System.fetch_env!("LOCKED_TAG")
-          upstream = System.fetch_env!("UPSTREAM_TAG")
+          locked = System.fetch_env!("LOCKED_VERSION")
+          upstream = System.fetch_env!("UPSTREAM_VERSION")
 
           case Version.compare(locked, upstream) do
             :lt -> IO.puts("lt")
@@ -122,29 +110,48 @@ jobs:
             echo "Already on latest version, nothing to do."
           else
             echo "already_latest=false" >> "$GITHUB_OUTPUT"
-            echo "New release available: ${{ steps.upstream.outputs.tag }} (current: ${{ steps.locked.outputs.tag }})"
+            echo "New release available: ${{ steps.upstream.outputs.version }} (current: ${{ steps.locked.outputs.version }})"
           fi
 
       - name: Update llm_db dependency
         id: update
         if: steps.compare.outputs.already_latest == 'false'
         env:
-          UPSTREAM_TAG: ${{ steps.upstream.outputs.tag }}
+          UPSTREAM_VERSION: ${{ steps.upstream.outputs.version }}
         run: |
           python3 - <<'PY'
           import os
           import re
           from pathlib import Path
 
+          upstream_version = os.environ["UPSTREAM_VERSION"]
+          version_parts = upstream_version.split(".")
+
+          if len(version_parts) < 2:
+              raise SystemExit(f"Unsupported llm_db version: {upstream_version}")
+
+          requirement = f'~> {version_parts[0]}.{version_parts[1]}'
           path = Path("mix.exs")
           source = path.read_text()
-          updated, count = re.subn(
-              r'(\{:llm_db,\s*git:\s*"https://github\.com/agentjido/llm_db\.git",\s*tag:\s*")[^"]+(")',
-              rf'\g<1>{os.environ["UPSTREAM_TAG"]}\2',
-              source,
-          )
 
-          if count != 1:
+          updated = source
+          total_matches = 0
+
+          updated, count = re.subn(
+              r'\{:llm_db,\s*"~>\s*\d+\.\d+"\}',
+              f'{{:llm_db, "{requirement}"}}',
+              updated,
+          )
+          total_matches += count
+
+          updated, count = re.subn(
+              r'\{:llm_db,\s*git:\s*"https://github\.com/agentjido/llm_db\.git",\s*tag:\s*"[^"]+"\}',
+              f'{{:llm_db, "{requirement}"}}',
+              updated,
+          )
+          total_matches += count
+
+          if total_matches != 1:
               raise SystemExit("Expected exactly one llm_db dependency entry in mix.exs")
 
           path.write_text(updated)
@@ -152,7 +159,7 @@ jobs:
 
           mix local.hex --force
           mix local.rebar --force
-          mix deps.get
+          mix deps.update llm_db
 
           if git diff --quiet -- mix.exs mix.lock; then
             echo "updated=false" >> "$GITHUB_OUTPUT"
@@ -172,5 +179,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add mix.exs mix.lock
-          git commit -m "mix: update llm_db to ${{ steps.upstream.outputs.tag }}"
+          git commit -m "chore(deps): update llm_db to ${{ steps.upstream.outputs.version }}"
           git push
